@@ -59,11 +59,10 @@ except ImportError:
 
 from dotenv import load_dotenv
 
-# Default output path for PRD documents
-PRD_OUTPUT_PATH = Path(os.getenv("PRD_OUTPUT_PATH", "D:/Workspaces/prds"))
-
-# Cache directory for API responses
-CACHE_DIR = Path(os.getenv("PRD_CACHE_DIR", "D:/Workspaces/prds/cache"))
+# Define paths for cache and output
+CACHE_DIR = Path(os.getenv("CACHE_DIR", Path.home() / ".prd_generator" / "cache"))
+# Use PRD_PATH from environment, or default to a "prds" folder in the user's home directory
+PRD_OUTPUT_PATH = Path(os.getenv("PRD_PATH", Path.home() / "prds"))
 
 # Load and validate the output paths
 def validate_paths():
@@ -83,7 +82,7 @@ def validate_paths():
         except Exception as e:
             logging.error(f"Error validating {name} path ({path}): {e}")
             if name == "PRD_OUTPUT_PATH":
-                alternative = Path.home() / "prd_documents"
+                alternative = Path.home() / "prds"  # Use same name as the default
                 logging.warning(f"Will attempt to use alternative path: {alternative}")
                 # Update the global variable
                 globals()[name] = alternative
@@ -160,12 +159,18 @@ def load_environment() -> Tuple[str, str]:
     if env_path.exists():
         logging.info(f"Loading environment variables from: {env_path}")
         load_dotenv(dotenv_path=env_path)
+        
+        # Debug: Print all loaded environment variables
+        logging.info(f"PRD_PATH from environment: {os.getenv('PRD_PATH')}")
+        logging.info(f"CLAUDE_MODEL from environment: {os.getenv('CLAUDE_MODEL')}")
     else:
         logging.info(f"No .env file found at: {env_path}")
         logging.info("Creating .env file with required variables...")
         with open(env_path, 'w') as f:
-            f.write("CLAUDE_MODEL=claude-3-opus-20240229\n")
+            f.write("CLAUDE_MODEL=claude-3-7-sonnet-latest\n")
             f.write("ANTHROPIC_API_KEY=your-api-key-here\n")
+            f.write("# PRD_PATH=C:/Temp/prds  # Optional: Path to store PRD files (use forward slashes even on Windows)\n")
+            f.write("# CACHE_DIR=C:/Temp/cache  # Optional: Path to store API cache files\n")
         logging.info("Please update the .env file with your API key and run the script again.")
         sys.exit(1)
 
@@ -1426,8 +1431,8 @@ class PRDGenerator:
             self.spinner.stop()
             
             print(f"\n✅ PRD successfully generated!")
-            print(f"\n📁 Files created in '{dir_name}' directory.\n")
             
+            # Display steps in a clearly formatted box
             print("\n📋 NEXT STEPS:")
             print("─" * 50)
             print("1. Share instructions.md with your IDE AI assistant")
@@ -1441,12 +1446,20 @@ class PRDGenerator:
             if hasattr(self, 'api_calls_made'):
                 cache_hits = len(self.cache_hits) if hasattr(self, 'cache_hits') else 0
                 print(f"\n📊 Generation Statistics")
+                
+                # File paths group
+                print(f"• Output directory: {dir_name}")
+                print(f"• Cache directory: {CACHE_DIR}")
+                
+                # Model/API group
                 print(f"• Model: {self.model}")
                 print(f"• API calls: {self.api_calls_made}")
+                
+                # Cache statistics group
                 print(f"• Cache hits: {cache_hits}")
                 print(f"• Total cache entries: {len(self.response_cache)}")
                 
-                # Show token statistics without cost information
+                # Token statistics group
                 if hasattr(self, 'tokens_saved'):
                     input_tokens_saved = self.tokens_saved.get('input', 0)
                     output_tokens_saved = self.tokens_saved.get('output', 0)
@@ -1499,6 +1512,36 @@ def print_header():
     # Set logger to WARNING for normal operation (only show warnings and errors by default)
     logging.getLogger().setLevel(logging.WARNING)
 
+def initialize_paths():
+    """Initialize path variables after environment is loaded."""
+    global CACHE_DIR, PRD_OUTPUT_PATH
+    
+    # Get path values from environment
+    prd_path = os.getenv("PRD_PATH")
+    cache_dir = os.getenv("CACHE_DIR")
+    
+    # Handle Windows paths with single backslashes in .env
+    if prd_path and os.name == 'nt' and '\\' in prd_path and not '\\\\' in prd_path:
+        # This is likely a Windows path with single backslashes
+        logging.info(f"Detected Windows path with single backslashes: {prd_path}")
+        # Replace single backslashes if they're not properly escaped
+        prd_path = prd_path.replace('\\', '/')
+        logging.info(f"Converted to: {prd_path}")
+    
+    # Same handling for cache directory
+    if cache_dir and os.name == 'nt' and '\\' in cache_dir and not '\\\\' in cache_dir:
+        cache_dir = cache_dir.replace('\\', '/')
+    
+    # Set the global paths using values from environment or defaults
+    CACHE_DIR = Path(cache_dir) if cache_dir else Path.home() / ".prd_generator" / "cache"
+    PRD_OUTPUT_PATH = Path(prd_path) if prd_path else Path.home() / "prds"
+    
+    logging.info(f"Initialized paths: PRD_OUTPUT_PATH={PRD_OUTPUT_PATH}, CACHE_DIR={CACHE_DIR}")
+    return {
+        "PRD_OUTPUT_PATH": PRD_OUTPUT_PATH,
+        "CACHE_DIR": CACHE_DIR
+    }
+
 def main():
     """Main function to run the PRD generator."""
     try:
@@ -1507,6 +1550,16 @@ def main():
         
         # Get API key and model from environment or user
         model, api_key = load_environment()
+        
+        # Initialize paths using environment variables
+        initialize_paths()
+        
+        # Log the actual paths being used
+        print(f"\nUsing PRD output path: {PRD_OUTPUT_PATH}")
+        print(f"Using cache directory: {CACHE_DIR}\n")
+        
+        # Validate and create necessary directories
+        validate_paths()
         
         # Initialize the generator with API key
         generator = PRDGenerator(model, api_key)
