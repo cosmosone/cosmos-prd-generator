@@ -31,7 +31,7 @@ A Python tool that automatically generates comprehensive, implementation-ready P
 
 3. Create a `.env` file in the project root with the following content:
    ```
-   CLAUDE_MODEL=claude-3-opus-20240229
+   CLAUDE_MODEL=claude-3-7-sonnet-latest
    ANTHROPIC_API_KEY=your-api-key-here
    ```
 
