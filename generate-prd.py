@@ -155,14 +155,16 @@ class ProgressSpinner:
         threading.Thread(target=self.spin, daemon=True).start()
 
     def update_message(self, message):
+        # Clear the current line completely before writing the new message
+        sys.stdout.write("\r" + " " * 100 + "\r")  # Use a fixed width buffer that's reasonably large
         self.current_message = message
-        sys.stdout.write("\r" + " " * (len(self.spinner_chars) + len(self.current_message) + 2) + "\r")
         sys.stdout.write(f"{self.spinner_chars[self.counter]} {self.current_message}")
         sys.stdout.flush()
 
     def stop(self):
         self.spinning = False
-        sys.stdout.write("\r" + " " * (len(self.spinner_chars) + len(self.current_message) + 2) + "\r")
+        # Clear the current line completely
+        sys.stdout.write("\r" + " " * 100 + "\r")
         sys.stdout.flush()
 
 
@@ -290,7 +292,10 @@ class PRDGenerator:
             self.input_tokens_saved += input_tokens
             self.output_tokens_saved += output_tokens
             logging.info(f"Cache hit for section '{identifier}'. Tokens saved: {input_tokens} input, {output_tokens} output")
-            self.spinner.update_message(f"Using cached response for: {identifier}... (Tokens saved: {input_tokens + output_tokens})")
+            # Clear any partial output and show a complete message for cache hits
+            print(f"\rRetrieving '{identifier}' from cache (Tokens saved: {input_tokens + output_tokens})...")
+            self.spinner.stop()  # Stop spinner to avoid interference with output
+            time.sleep(0.5)  # Small delay to ensure message is visible
             return cached_response
         
         # Estimate required tokens
@@ -358,8 +363,8 @@ class PRDGenerator:
 
         info['name'] = input("\nEnter project name: ").strip()
 
-        print("\nDescribe your project goal in detail:")
-        print("Before describing your goal, please consider:\n")
+        # Removed the "Describe your project goal" heading and just kept the helpful guidance
+        print("\nBefore describing your goal, please consider:\n")
         print("- Target Platform/OS: (e.g., Windows, Web, Mobile, Chrome Extension)")
         print("- Preferred Programming Language/Frameworks: (Optional)")
         print("- Are there any specific technologies to be used or avoided?")
@@ -389,15 +394,15 @@ class PRDGenerator:
             "   - Testable components\n\n"
             "2. Implementation Approach:\n"
             "   - Start with simple, working application first\n"
-            "   - Verify each major step with a working build by starting the app\n" # Added verification by starting app
-            "   - Add complexity incrementally, one baby step at a time\n" # Added baby step approach
+            "   - Verify each major step with a working build by starting the app\n" 
+            "   - Add complexity incrementally, one baby step at a time\n"
             "   - Keep each phase testable\n\n"
             "3. Code Structure:\n"
             "   - Clear naming conventions\n"
-            "   - Consistent patterns (Cosmos Pattern for modules)\n" # Added Cosmos Pattern
+            "   - Consistent patterns\n"
             "   - Proper error handling\n"
             "   - Comprehensive logging\n\n"
-            "4. Security Best Practices:\n" # Added Security Guidelines
+            "4. Security Best Practices:\n"
             "   - Avoid hardcoding credentials; use environment variables or secure configuration\n"
             "   - Input validation and sanitization\n"
             "   - Secure error handling (avoid exposing sensitive info)\n\n"
@@ -418,17 +423,16 @@ class PRDGenerator:
             "- **Security:** No hardcoded credentials; follow security standards; input validation.\n"
             "- **Dev & Prod:** Don't disrupt working features; targeted changes; prioritize security, maintainability, performance.\n"
             "- **Performance:** Identify bottlenecks before optimizing; balance optimization.\n"
-            "- **Code & Docs:** Syntax highlighting; comments; reference docs; use Cosmos Pattern for modules.\n" # Added Cosmos Pattern here as well
+            "- **Code & Docs:** Syntax highlighting; comments; reference docs.\n"
             "- **Style & Tone:** Concise, clear, straightforward.\n"
             "- **Design Philosophy:** Interface-based programming; dependency inversion; composition over inheritance.\n"
             "- **Cross-Platform:** Awareness of cross-platform issues.\n"
             "- **UI/UX:** Modern, accessible UI; consider accessibility.\n"
             "- **API Design:** RESTful principles; GraphQL schemas; versioning; security.\n"
             "- **Data Privacy:** Data minimization; privacy by design; DSARs; encryption.\n"
-            "- **Clean Architecture (Cosmos Pattern):** Separate interfaces/implementations; factories; public APIs only.\n" # Explicit Cosmos Pattern mention
+            "- **Clean Architecture:** Separate interfaces/implementations; factories; public APIs only.\n"
             "- **Pattern Continuity:** Maintain existing patterns and architecture.\n"
-            "- **Verification:** Start app to verify each phase and step.\n" # Added verification step
-
+            "- **Verification:** Start app to verify each phase and step.\n"
         )
 
 
@@ -461,12 +465,12 @@ class PRDGenerator:
             "**First, provide a concise 1-2 sentence description of the '{project_info['name']}' app/extension.**\n\n"
             "**Then, suggest a phased implementation approach, with the following structure:**\n"
             "#### Phase 1: Minimal Working Prototype\n"
-            "Start with a simple, working prototype that builds and runs. Focus on setting up the project with minimal functionality and verifying the setup by starting the app.\n\n" # Added verification in Phase 1
+            "Start with a simple, working prototype that builds and runs. Focus on setting up the project with minimal functionality and verifying the setup by starting the app.\n\n"
             "Then suggest 3-5 additional phases, each building on a working foundation from the previous phase. Use '#### Phase N: Phase Name' format for phase headings.\n\n"
             "After defining the phases, then Include:\n"
             "1. Project Overview\n"
             "   - Core functionality\n"
-            "   - Target architecture (Clean Architecture, Cosmos Pattern for modules)\n" # Added Cosmos Pattern to architecture
+            "   - Target architecture (Clean Architecture)\n"
             "   - Key components\n"
             "   - System boundaries\n\n"
             "2. Technology Recommendations (General, if no specific tech is provided)\n"
@@ -520,7 +524,11 @@ class PRDGenerator:
         self.spinner.start("Generating Project Overview...")
         overview_section = self._generate_section(overview_prompt, "overview")
         sections.append(overview_section)
-
+        
+        # Stop spinner after overview is complete
+        self.spinner.stop()
+        print("\rOverview generation complete.")
+        
         # Extract phase descriptions from the generated overview
         phase_descriptions = self._extract_phases_from_overview(overview_section)
 
@@ -528,14 +536,19 @@ class PRDGenerator:
         for i, phase_info in enumerate(phase_descriptions, 1):
             phase_name = phase_info['name']
             phase_description = phase_info['description']
-            self.spinner.update_message(f"Generating Phase {i}: {phase_name}...")
+            
+            # Restart spinner for each phase with clear message
+            self.spinner.stop()
+            print(f"\rPreparing Phase {i}: {phase_name}...")
+            self.spinner.start(f"Generating Phase {i}: {phase_name}...")
+            
             phase_prompt = (
                 f"Create Phase {i} implementation plan for {project_info['name']}.\n\n"
                 f"Project Context:\n{project_info['goal']}\n"
                 f"Phase: {phase_name}\n"
                 f"Phase Description: {phase_description}\n\n"
                 f"**Design Requirement**: Sleek, modern, minimalistic UI. Clear layout, effective typography, consistent visual style.\n"
-                f"Follow Clean Architecture principles and Cosmos Pattern for module structure.\n" # Emphasize architecture and Cosmos Pattern
+                f"Follow Clean Architecture principles.\n"
             )
 
             # Conditionally add technology-specific guidance if tech was specified
@@ -558,19 +571,19 @@ class PRDGenerator:
                 f"PHASE {i} REQUIREMENTS:\n"
                 f"- Phase {i-1} complete and verified (if not Phase 1)\n"
                 f"- All previous tests passing\n"
-                f"- Follow implementation steps in order, one baby step at a time\n" # Baby step approach
-                f"- After each implementation step, start the app and verify the implementation.\n" # Verification after each step
+                f"- Follow implementation steps in order, one incremental step at a time\n"
+                f"- After each implementation step, start the app and verify the implementation.\n"
                 f"- Confirm completion of each step\n"
-                f"- Maintain consistent architecture (Clean Architecture, Cosmos Pattern)\n" # Cosmos Pattern in phases too
+                f"- Maintain consistent architecture (Clean Architecture)\n"
                 f"- Get IDE AI verification before proceeding\n\n"
                 "Provide:\n"
-                "1. Implementation Steps (Baby Steps):\n" # Baby Steps in heading
-                "   - Concrete, verifiable tasks\n" # Verifiable tasks
-                "   - Component specifications (using Cosmos Pattern)\n" # Cosmos Pattern for components
-                "   - Code structure (Cosmos Pattern)\n" # Cosmos Pattern for code structure
+                "1. Implementation Steps (Baby Steps):\n"
+                "   - Concrete, verifiable tasks\n"
+                "   - Component specifications\n"
+                "   - Code structure\n"
                 "   - Interface definitions\n\n"
                 "2. Completion Criteria:\n"
-                "   - Functionality to be implemented and verified by starting the app\n" # Verification by starting app
+                "   - Functionality to be implemented and verified by starting the app\n"
                 "   - Test requirements\n"
                 "   - Performance metrics (if relevant)\n"
                 "   - Quality checks\n\n"
@@ -578,24 +591,20 @@ class PRDGenerator:
                 "   - Core interfaces\n"
                 "   - Key implementations\n"
                 "   - Test examples\n"
-                "   - Configuration examples (avoid hardcoding, use placeholders)\n\n" # Emphasize placeholders
-                "4. Validation Steps (Verification Checklist):\n" # Verification Checklist
-                "   - Steps to start the app and verify functionality after each implementation step\n" # Verification steps detailed
-                "   - Test scenarios\n"                "   - Success criteria for each step and phase\n" # Success criteria for steps and phases
+                "   - Configuration examples (avoid hardcoding, use placeholders)\n\n"
+                "4. Validation Steps (Verification Checklist):\n"
+                "   - Steps to start the app and verify functionality after each implementation step\n"
+                "   - Test scenarios\n"
+                "   - Success criteria for each step and phase\n"
                 "   - Error case examples\n"
                 "   - Integration points to verify\n\n"
                 f"For IDE AI Usage:\n"
                 f"- Copy ENTIRE phase document content to IDE AI chat.\n"
                 f"- Paste directly into IDE AI chat interface.\n"
                 f"- For each implementation step, ask IDE AI for assistance (e.g., 'Help me implement step 1...').\n"
-                f"- AI MUST follow architectural guidelines in `project_prompt.md` and Cosmos Pattern.\n" # Cosmos Pattern for AI
-                f"- Prioritize architectural compliance and code quality.\n"
-                f"- Verify AI suggestions against project architecture and Cosmos Pattern.\n" # Cosmos Pattern for AI verification
-                f"- After each step, start the app and verify implementation.\n" # Verification after each step for AI
+                f"- AI MUST follow architectural guidelines in `project_prompt.md`.\n"
+                f"- Verify each step by starting the app.\n"
                 f"- Confirm step completion and get AI verification before next step.\n"
-                f"- Project Context: [From project_prompt.md]\n"
-                f"- Current Phase Goal: [From phase description]\n"
-                f"- IMPORTANT: Code MUST follow `project_prompt.md` architecture and Cosmos Pattern.\n" # Cosmos Pattern important note
                 f"- **Design Focus**: Sleek, modern, minimalistic UI design.\n"
                 f"- Ensure architectural integrity, encapsulation, consistent tech stack, and modern UI design.\n"
                 f"Format in Markdown. Concrete, testable implementation steps. No implementation without explicit confirmation."
@@ -741,135 +750,46 @@ class PRDGenerator:
                 f.write("\n\n## AI Development Assistant Guidelines\n\n")
 
                 # Include the full AI Assistant Guidelines in phase_00.md
-                f.write("As your AI Development Assistant, please adhere to the following guidelines:\n\n")
-                f.write("### 1. Accuracy and Honesty\n")
-                f.write("- If you lack confirmed information, say explicitly that you don't have the info rather than fabricating details.\n")
-                f.write("- When your response isn't based on confirmed sources, begin with 'I think…', 'I believe…', or 'My understanding…' to clearly mark opinions or assumptions.\n\n")
-
-                f.write("### 2. Troubleshooting and Problem-Solving\n")
-                f.write("- Address issues directly with clear, numbered steps for resolution.\n")
-                f.write("- Favor systematic debugging approaches over quick fixes when appropriate.\n")
-                f.write("- Start with simple solutions before suggesting complex ones.\n")
-                f.write("- Help users interpret error messages and logs effectively.\n")
-                f.write("- Ensure that each point is mentioned only once without unnecessary repetition.\n\n")
-
-                f.write("### 3. Security Best Practices\n")
-                f.write("- Always suggest configurations or code that avoid hardcoding credentials.\n")
-                f.write("- Separate configurations from sensitive credentials storage.\n")
-                f.write("- Prioritize solutions that follow industry security standards.\n")
-                f.write("- Be explicit about potential security implications of suggested solutions.\n")
-                f.write("- Recommend proper input validation and sanitization to prevent injection attacks.\n")
-                f.write("- Suggest appropriate error handling that doesn't expose sensitive information.\n\n")
-
-                f.write("### 4. Development and Production Considerations\n")
-                f.write("- When updating features, be extremely careful not to disrupt existing functionality that's confirmed as working.\n")
-                f.write("- Have a clear chain of thought for the objective and ensure modifications are strictly targeted to requested changes.\n")
-                f.write("- When multiple solutions exist, prioritize: (1) security, (2) maintainability, (3) performance, unless specified otherwise.\n")
-                f.write("- For reusable modules, always implement the interface-implementation pattern when supported by the language.\n")
-                f.write("- Recommend appropriate test strategies alongside implementation code.\n")
-                f.write("- Include guidance on observability (logging, metrics, monitoring) when relevant.\n\n")
-
-                f.write("### 5. Performance Optimization\n")
-                f.write("- Focus on identifying performance bottlenecks before recommending optimizations.\n")
-                f.write("- Balance between avoiding premature optimization and addressing necessary performance considerations.\n")
-                f.write("- Provide guidelines for resource-intensive operations (caching, pagination, asynchronous processing).\n\n")
-
-                f.write("### 6. Code and Documentation\n")
-                f.write("- Format code with appropriate syntax highlighting and indentation.\n")
-                f.write("- Include helpful comments in code examples, especially for complex operations.\n")
-                f.write("- Reference relevant documentation when applicable.\n")
-                f.write("- When suggesting libraries or tools, briefly mention their advantages and limitations.\n")
-                f.write("- Document interfaces thoroughly, clearly defining contracts, expected behaviors, and implementation requirements.\n")
-                f.write("- Ensure commands are generated for Windows PowerShell (e.g., using ; instead of &&, like cd src-tauri ; cargo check).\n\n")
-
-                f.write("### 7. Style and Tone\n")
-                f.write("- Keep responses concise, clear, and straightforward.\n")
-                f.write("- Use humor where appropriate, particularly when it helps illustrate a concept.\n")
-                f.write("- Avoid redundant explanations and keep answers direct.\n")
-                f.write("- Adapt formality to match the complexity and seriousness of the topic.\n")
-                f.write("- Ensure all responses are in Australian English.\n\n")
-
-                f.write("### 8. Design Philosophy\n")
-                f.write("- Use interface-based programming for all reusable modules.\n")
-                f.write("- Decouple implementations from interfaces to enable easy substitution.\n")
-                f.write("- Design interfaces based on behavior rather than implementation details.\n")
-                f.write("- Follow dependency inversion principle by depending on abstractions (interfaces) rather than concrete implementations.\n")
-                f.write("- Promote composition over inheritance when designing object relationships.\n")
-                f.write("- Encourage single responsibility principle for modules and functions.\n\n")
-
-                f.write("### 9. Cross-Platform Awareness\n")
-                f.write("- While focused on Windows 11, be aware of potential cross-platform issues when relevant.\n")
-                f.write("- Include awareness of path differences and environment-specific issues in suggestions.\n\n")
-
-                f.write("### 10. UI/UX Considerations (when applicable)\n")
-                f.write("- Suggest modern, accessible UI components following established design patterns.\n")
-                f.write("- Consider accessibility and internationalization in user interface recommendations.\n\n")
-
-                f.write("### 11. API Design Principles\n")
-                f.write("- Follow RESTful API best practices including proper resource naming, HTTP methods, and status codes.\n")
-                f.write("- Design GraphQL schemas with clear types, resolvers, and queries that minimize overfetching.\n")
-                f.write("- Implement consistent error handling and response formats across all API endpoints.\n")
-                f.write("- Use API versioning strategies (URI path, query parameter, or header-based) to maintain backward compatibility.\n")
-                f.write("- Document APIs using standards like OpenAPI/Swagger for REST or GraphQL Schema Documentation.\n")
-                f.write("- Implement proper rate limiting, authentication, and authorization mechanisms.\n")
-                f.write("- Design APIs for optimal caching at various levels (client, CDN, server).\n")
-                f.write("- Consider using hypermedia (HATEOAS) for REST APIs to improve discoverability.\n")
-                f.write("- Structure request/response payloads efficiently, with clear validation requirements.\n")
-                f.write("- Develop comprehensive API testing strategies including contract testing.\n\n")
-
-                f.write("### 12. Data Privacy\n")
-                f.write("- Implement data minimization by collecting and processing only necessary information.\n")
-                f.write("- Design systems with privacy by default and privacy by design principles.\n")
-                f.write("- Include mechanisms for data subject access requests (DSARs) and the right to be forgotten.\n")
-                f.write("- Apply appropriate anonymization techniques (k-anonymity, differential privacy) for analytics data.\n")
-                f.write("- Implement data retention policies and automated purging mechanisms.\n")
-                f.write("- Use pseudonymization for data that requires identification capabilities without exposing PII.\n")
-                f.write("- Create clear audit trails for data access and modifications to sensitive information.\n")
-                f.write("- Design explicit consent mechanisms with granular permission controls.\n")
-                f.write("- Ensure cross-border data transfer compliance with relevant regulations (GDPR, CCPA, etc.).\n")
-                f.write("- Implement data breach detection, notification, and response procedures.\n")
-                f.write("- Protect sensitive data with appropriate encryption in transit and at rest.\n\n")
-
-                f.write("### 13. Clean Architecture Module Structure (Cosmos Pattern)\n")
-                f.write("Follow the Cosmos Pattern for module structure to maintain Clean Architecture principles. This involves separating interfaces from implementations, using factory patterns, and ensuring modules are independently testable. Refer to `project_prompt.md` for language-specific directory structure examples.\n\n")
-
-                f.write("### 14. Pattern Reference\n")
-                f.write("The 'Cosmos Pattern' refers to the Clean Architecture Module Structure defined in section 13. When instructed to use this pattern, apply the appropriate language-specific directory structure and follow all principles outlined in that section.\n\n")
-
-                f.write("### 15. Pattern and Architecture Continuity\n")
-                f.write("- Maintain all existing design patterns and software architecture (including the Cosmos Pattern) when making any changes or updates.\n")
-                f.write("- Never deviate from established architectural patterns even for minor modifications.\n")
-                f.write("- Ensure all new code follows the same architectural principles as the existing codebase.\n")
-                f.write("- When extending functionality, preserve the interface-implementation separation and module structure.\n")
-                f.write("- Validate that changes preserve the integrity of the overall system architecture.\n")
-                f.write("- If architectural changes are necessary, explicitly discuss the rationale before implementation.\n\n")
-
-
-                f.write("### Development Workflow\n")
-                f.write("- Implement features iteratively according to the phase plan, one baby step at a time.\n") # Baby steps workflow
-                f.write("- After each implementation step, start the app and verify the implementation.\n") # Verification workflow
-                f.write("- Write tests before or alongside implementation.\n")
-                f.write("- Document all key decisions and architectural choices.\n")
-                f.write("- Review code quality and test coverage before completing each phase.\n")
-                f.write("- Maintain consistency with established patterns (Cosmos Pattern).\n\n") # Cosmos Pattern in workflow
-
-                f.write("## IDE AI Instructions\n\n")
-                f.write("As the AI assistant for this project:\n")
-                f.write("1. Follow one phase at a time as provided by the developer, step by baby step.\n") # Baby steps for AI
-                f.write("2. After each implementation step, provide instructions to start the app and verify the implemented functionality.\n") # Verification for AI
-                f.write("3. Strictly adhere to the architectural guidelines defined in project_prompt.md and Cosmos Pattern.\n") # Cosmos Pattern for AI
-                f.write("4. Maintain proper encapsulation between modules as defined in the architecture (Cosmos Pattern).\n") # Cosmos Pattern for AI
-                f.write("5. Use consistent technology stacks throughout the development process.\n")
-                f.write("6. Only implement features defined in the current phase.\n")
-                f.write("7. Suggest refactoring when code deviates from the defined architecture or Cosmos Pattern.\n") # Cosmos Pattern for AI refactoring
-                f.write("8. Maintain consistency with previously established patterns and conventions.\n")
-                f.write("9. Provide complete implementations rather than skeleton code.\n")
-                f.write("10. Include appropriate tests for all new functionality.\n")
-                f.write("11. Validate that each phase is complete before moving to the next, including starting the app and verifying.\n\n") # Verification for AI phase completion
-
-                f.write("## DO NOT Begin Implementation Yet\n")
-                f.write("Wait for Phase 1 document before starting implementation.\n")
-                f.write("Refer to project_prompt.md for detailed technical architecture and Cosmos Pattern.\n") # Cosmos Pattern in DO NOT
+                f.write("## AI Assistant Workflow Process\n\n")
+                f.write("The generated PRD is designed for a step-by-step implementation with an AI assistant:\n\n")
+                f.write("1. **Project Configuration**: Use `project_prompt.md` as the project-wide AI rulebook that ensures the AI assistant follows consistent guidelines throughout all phases of development. This file defines:\n")
+                f.write("   - Project architecture requirements\n")
+                f.write("   - Clean Architecture principles\n")
+                f.write("   - Coding standards and patterns\n")
+                f.write("   - Security practices\n")
+                f.write("   - Interface design principles\n")
+                f.write("   - Testing requirements\n")
+                f.write("   - The AI must adhere to these rules for all implementation phases\n\n")
+                f.write("2. **Initial Context Setting**: Share `phase_00.md` with your IDE AI assistant first to give it an overview of the application you want to develop.\n\n")
+                f.write("3. **Implementation by Phases**: For each phase:\n")
+                f.write("   - Provide the content of `phase_01.md` to the AI\n")
+                f.write("   - Implement one section at a time, in order\n")
+                f.write("   - Verify each step works by starting the application\n")
+                f.write("   - Get AI verification before proceeding to the next step or phase\n")
+                f.write("   - Once phase 1 is complete and verified, move on to `phase_02.md`, and so on\n")
+                f.write("   - The AI must follow the rules in `project_prompt.md` for all implementations\n\n")
+                f.write("4. **Baby Steps Approach**: Each phase document breaks implementation into small, verifiable steps. Take one step at a time and verify functionality before moving to the next.\n\n")
+                
+                f.write("## IDE AI Assistant Guidelines\n\n")
+                f.write("The IDE AI Assistant should:\n\n")
+                f.write("1. Always prioritize understanding over immediate implementation.\n")
+                f.write("2. Use the information in project_prompt.md as guiding principles.\n")
+                f.write("3. Strictly adhere to the architectural guidelines defined in project_prompt.md.\n")
+                f.write("4. Maintain proper encapsulation between modules as defined in the architecture.\n")
+                f.write("5. Follow a systematic development process: understand, plan, implement, test, verify.\n")
+                f.write("6. Explain reasoning for architectural choices when implementing complex features.\n")
+                f.write("7. Suggest refactoring when code deviates from the defined architecture.\n")
+                f.write("8. Provide step-by-step development guidance following baby steps approach.\n")
+                f.write("9. Include comprehensive tests as part of the implementation process.\n\n")
+                
+                f.write("## IDE AI DO NOT GUIDELINES\n\n")
+                f.write("The IDE AI Assistant should NOT:\n\n")
+                f.write("1. Skip ahead to later phases before current phase is fully implemented and verified.\n")
+                f.write("2. Implement multiple steps at once, bypassing the baby steps approach.\n")
+                f.write("3. Generate code that deviates from the Architecture Pattern defined in the PRD.\n")
+                f.write("4. Make assumptions about feature implementations without referring to detailed requirements.\n")
+                f.write("5. Leave security vulnerabilities or performance issues unaddressed.\n\n")
+                f.write("Refer to project_prompt.md for detailed technical architecture.\n\n")
 
             # Create project_prompt.md with focused project information
             project_prompt_file = dir_name / "project_prompt.md"
@@ -1011,27 +931,6 @@ class PRDGenerator:
                 f.write("- Test each component as implemented.\n")
                 f.write("- Document key design decisions.\n")
 
-                # Folder Structure - Cosmos Pattern Directory Structure
-                f.write("\n## Cosmos Pattern - Recommended Folder Structure\n\n") # Cosmos Pattern Folder Structure heading
-                # Generic Cosmos Pattern folder structure, adaptable
-                f.write("```\n")
-                f.write(f"{project_name.lower().replace(' ', '_')}/\n")
-                f.write("├── src/                     # Source code root\n")
-                f.write("│   ├── domain/              # Domain layer - business logic and entities\n")
-                f.write("│   │   └── <module_name>/   # Modules following Cosmos Pattern\n") # Cosmos Pattern Modules
-                f.write("│   │       ├── public/\n")
-                f.write("│   │       ├── service/\n")
-                f.write("│   │       ├── factory/\n")
-                f.write("│   │       └── <module>_controller.rs (or language equivalent)\n")
-                f.write("│   ├── application/         # Application layer - use cases/services\n")
-                f.write("│   ├── infrastructure/      # Infrastructure layer - external dependencies, data sources\n")
-                f.write("│   └── presentation/        # Presentation layer - UI components, views\n")
-                f.write("├── assets/                  # Static assets\n")
-                f.write("├── tests/                   # Tests\n")
-                f.write("└── docs/                    # Documentation\n")
-                f.write("```\n\n")
-                f.write("Refer to `phase_00.md` for language-specific examples of Cosmos Pattern directory structure.\n") # Reference to phase_00.md
-
             # Create phase files
             for i, phase in enumerate(sections[1:], 1):
                 phase_file = dir_name / f"phase_{i:02d}.md"
@@ -1064,45 +963,49 @@ class PRDGenerator:
                     f.write(f"# Phase {i} Implementation Plan\n\n")
 
                     # Architecture reminder - Cosmos Pattern included
-                    f.write("## ⚠️ IMPORTANT: Architectural Compliance (Clean Architecture, Cosmos Pattern)\n") # Cosmos Pattern in phase files
-                    f.write("Code MUST follow architecture in `project_prompt.md` and Cosmos Pattern for modules.\n") # Cosmos Pattern reminder
-                    f.write("These rules are foundational and cannot be modified.\n")
-                    f.write("Review `phase_00.md` for guidance and `project_prompt.md` for architecture and Cosmos Pattern.\n") # Cosmos Pattern in review
-                    f.write("AI assistant MUST adhere to these guidelines.\n\n")
+                    f.write("## 🔧 Technical Architecture\n\n")
+                    f.write("### Technology Stack Overview\n\n")
+                    f.write("- **Programming Language**: [As specified or recommended]\n") # Language
+                    f.write("- **Frontend Framework**: [As specified or recommended]\n") # Frontend
+                    f.write("- **Backend Framework**: [As specified or recommended]\n") # Backend
+                    f.write("- **Database**: [As specified or recommended]\n") # Database
+                    f.write("- **Architecture Pattern**: Clean Architecture\n") # Clean Architecture
+                    f.write("- **UI Framework**: [As specified or recommended]\n") # UI Framework
+                    f.write("- **State Management**: [As specified or recommended]\n") # State Management
+                    f.write("- **Testing Framework**: [As specified or recommended]\n") # Testing
+                    
+                    f.write("\n## 📚 Technical Guidelines\n\n")
+                    f.write("- Follow clean architecture principles with clear separation of concerns.\n") # Clean Architecture
+                    f.write("- Ensure proper dependency injection and interface-based design.\n") # DI
+                    f.write("- Use appropriate design patterns to solve common problems.\n") # Design Patterns
+                    f.write("- Prioritize testability in all components.\n") # Testing
+                    f.write("- Ensure proper error handling and user feedback.\n") # Error handling
+                    f.write("- Maintain architectural integrity throughout.\n") # Architecture
 
-                    f.write("## Implementation Requirements\n\n")
+                    f.write("\n## Implementation Requirements\n\n")
                     if i > 1:
                         f.write(f"- Phase {i-1} complete and verified (by starting app)\n") # Verification in requirements
                         f.write("- All previous tests passing\n")
-                    f.write("- Follow implementation steps in order, baby step by baby step.\n") # Baby steps in phase files
+                    f.write("- Follow implementation steps in order, one incremental step at a time.\n") # Baby steps in phase files
                     f.write("- After each step, start the app and verify implementation.\n") # Verification step in phase files
                     f.write("- Confirm step completion.\n")
-                    f.write("- Maintain consistent architecture and Cosmos Pattern.\n") # Cosmos Pattern in phase requirements
+                    f.write("- Maintain consistent architecture.\n") # Cosmos Pattern in phase requirements
                     f.write("- Get IDE AI verification before proceeding.\n\n")
                     f.write(phase)
                     f.write("\n\n## Completion Checklist\n\n")
-                    f.write("- [ ] All implementation steps completed (baby steps)\n") # Baby steps checklist
-                    f.write("- [ ] After each step, app started and functionality verified\n") # Verification checklist
+                    f.write("- [ ] All implementation steps completed (baby steps)\n")
+                    f.write("- [ ] After each step, app started and functionality verified\n")
                     f.write("- [ ] All tests passing\n")
                     f.write("- [ ] Code reviewed and documented\n")
-                    f.write("- [ ] Architectural compliance (Clean Architecture, Cosmos Pattern) verified\n") # Cosmos Pattern in checklist
+                    f.write("- [ ] Architectural compliance verified\n")
                     f.write("- [ ] IDE AI verification received\n")
 
             self.spinner.stop()
             print(f"\nPRD files created in '{dir_name}' directory.")
             
-            # Remove duplicate statistics display since we show it in main()
-            print("\nIMPORTANT:")
-            print("1. Share phase_00.md with IDE AI assistant")
-            print("2. Reference project_prompt.md for project overview, architecture, and Cosmos Pattern")
-            print("3. Start implementation: copy phase_01.md content to IDE AI chat")
-            print("4. Follow phase documents in order for implementation, baby step by baby step, verifying after each step.")
-            print("5. Get IDE AI verification before moving to next step or phase.")
-
         except Exception as e:
             self.spinner.stop()
             logging.error(f"Error saving PRD files: {e}")
-
 
 def clear_screen():
     """Clear the terminal screen."""
@@ -1164,10 +1067,10 @@ def main():
                 print(f"• Total tokens saved: {total_tokens_formatted}")
                 
             print("\nIMPORTANT:")
-            print("1. Share phase_00.md with IDE AI assistant")
-            print("2. Reference project_prompt.md for project overview, architecture, and Cosmos Pattern")
+            print("1. Configure project-wide AI rules with project_prompt.md")
+            print("2. Share phase_00.md with IDE AI assistant for project overview")
             print("3. Start implementation: copy phase_01.md content to IDE AI chat")
-            print("4. Follow phase documents in order for implementation, baby step by baby step, verifying after each step.")
+            print("4. Follow phase documents in order for implementation, one incremental step at a time, verifying after each step.")
             print("5. Get IDE AI verification before moving to next step or phase.")
 
     except KeyboardInterrupt:
