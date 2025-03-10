@@ -9,7 +9,7 @@ A Python tool that automatically generates comprehensive, implementation-ready P
 - **Multi-File Output**: Creates structured files for each implementation phase
 - **Intelligent Caching**: Saves API responses to reduce token usage and improve performance
 - **Checkpoint System**: Preserves progress during generation
-- **Clean Module Structure Support**: Generates documents that follow the Cosmos Pattern
+- **Clean Architecture Module Structure Support**: Generates documents that follow the Clean Architecture Module Structure
 - **Cross-Platform Support**: Works on Windows, macOS, and Linux
 
 ## Prerequisites
@@ -60,7 +60,7 @@ The script will ask you for:
 The generator creates a directory with the following files:
 
 - **instructions.md**: Guidelines for AI-assisted development
-- **project_prompt.md**: Project architecture blueprint with Clean Module Structure details
+- **project_prompt.md**: Project architecture blueprint with Clean Architecture Module Structure details
 - **phase_XX.md**: Implementation plans for each development phase
 
 ### Directory Structure
@@ -106,9 +106,9 @@ The tool analyzes your project description to identify implementation phases. Fo
 2. **Core Functionality Phase**: Description...
 ```
 
-### Clean Module Structure Support
+### Clean Architecture Module Structure Support
 
-Generated documents include the Clean Module Structure pattern:
+Generated documents include the Clean Architecture Module Structure pattern:
 ```
 <module_name>/
 ├── public/           # Public interfaces defining the contract
@@ -176,4 +176,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgments
 
 - Built using the Anthropic Claude API
-- Inspired by the Cosmos Pattern for clean architecture 
+- Inspired by Clean Architecture principles for modular software design 

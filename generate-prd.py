@@ -806,7 +806,7 @@ class PRDGenerator:
             f"Phase Description: {phase.get('description', 'No description provided')}\n\n"
             f"Requirements:\n"
             f"1. Implementation steps (small, incremental, verifiable)\n"
-            f"2. Component specifications using Clean Module Structure\n"
+            f"2. Component specifications using Clean Architecture Module Structure\n"
             f"3. Interface definitions\n"
             f"4. Testing criteria\n\n"
             f"Key points:\n"
@@ -1172,14 +1172,14 @@ class PRDGenerator:
                     f.write("- Implement data breach detection, notification, and response procedures.\n")
                     f.write("- Protect sensitive data with appropriate encryption in transit and at rest.\n\n")
 
-                    f.write("### 13. Clean Architecture Module Structure (Clean Module Structure)\n")
-                    f.write("Follow the Clean Module Structure for module structure to maintain Clean Architecture principles. This involves separating interfaces from implementations, using factory patterns, and ensuring modules are independently testable. Refer to `project_prompt.md` for language-specific directory structure examples.\n\n")
+                    f.write("### 13. Clean Architecture Module Structure\n")
+                    f.write("Follow the Clean Architecture Module Structure to maintain Clean Architecture principles. This involves separating interfaces from implementations, using factory patterns, and ensuring modules are independently testable. Refer to `project_prompt.md` for language-specific directory structure examples.\n\n")
 
                     f.write("### 14. Pattern Reference\n")
-                    f.write("The 'Clean Module Structure' refers to the Clean Architecture Module Structure defined in section 13. When instructed to use this pattern, apply the appropriate language-specific directory structure and follow all principles outlined in that section.\n\n")
+                    f.write("The 'Clean Architecture Module Structure' defined in section 13 provides a standardized way to organize your code. When instructed to use this structure, apply the appropriate language-specific directory structure and follow all principles outlined in that section.\n\n")
 
                     f.write("### 15. Pattern and Architecture Continuity\n")
-                    f.write("- Maintain all existing design patterns and software architecture (including the Clean Module Structure) when making any changes or updates.\n")
+                    f.write("- Maintain all existing design patterns and software architecture (including the Clean Architecture Module Structure) when making any changes or updates.\n")
                     f.write("- Never deviate from established architectural patterns even for minor modifications.\n")
                     f.write("- Ensure all new code follows the same architectural principles as the existing codebase.\n")
                     f.write("- When extending functionality, preserve the interface-implementation separation and module structure.\n")
@@ -1193,17 +1193,17 @@ class PRDGenerator:
                     f.write("- Write tests before or alongside implementation.\n")
                     f.write("- Document all key decisions and architectural choices.\n")
                     f.write("- Review code quality and test coverage before completing each phase.\n")
-                    f.write("- Maintain consistency with established patterns (Clean Module Structure).\n\n") # Clean Module Structure in workflow
+                    f.write("- Maintain consistency with established patterns (Clean Architecture Module Structure).\n\n") # Clean Module Structure in workflow
 
                     f.write("## IDE AI Instructions\n\n")
                     f.write("As the AI assistant for this project:\n")
                     f.write("1. Follow one phase at a time as provided by the developer, step by step.\n") # Baby steps for AI
                     f.write("2. After each implementation step, provide instructions to start the app and verify the implemented functionality.\n") # Verification for AI
-                    f.write("3. Strictly adhere to the architectural guidelines defined in project_prompt.md and Clean Module Structure.\n") # Clean Module Structure for AI
-                    f.write("4. Maintain proper encapsulation between modules as defined in the architecture (Clean Module Structure).\n") # Clean Module Structure for AI
+                    f.write("3. Strictly adhere to the architectural guidelines defined in project_prompt.md and Clean Architecture Module Structure.\n") # Clean Module Structure for AI
+                    f.write("4. Maintain proper encapsulation between modules as defined in the architecture (Clean Architecture Module Structure).\n") # Clean Module Structure for AI
                     f.write("5. Use consistent technology stacks throughout the development process.\n")
                     f.write("6. Only implement features defined in the current phase.\n")
-                    f.write("7. Suggest refactoring when code deviates from the defined architecture or Clean Module Structure.\n") # Clean Module Structure for AI refactoring
+                    f.write("7. Suggest refactoring when code deviates from the defined architecture or Clean Architecture Module Structure.\n") # Clean Module Structure for AI refactoring
                     f.write("8. Maintain consistency with previously established patterns and conventions.\n")
                     f.write("9. Provide complete implementations rather than skeleton code.\n")
                     f.write("10. Include appropriate tests for all new functionality.\n")
@@ -1211,7 +1211,7 @@ class PRDGenerator:
 
                     f.write("## DO NOT Begin Implementation Yet\n")
                     f.write("Wait for Phase 1 document before starting implementation.\n")
-                    f.write("Refer to project_prompt.md for detailed technical architecture and Clean Module Structure.\n") # Clean Module Structure in DO NOT
+                    f.write("Refer to project_prompt.md for detailed technical architecture and Clean Architecture Module Structure.\n") # Clean Module Structure in DO NOT
             except IOError as e:
                 logging.error(f"Failed to write to {instructions_file}: {e}")
                 return
@@ -1397,12 +1397,12 @@ class PRDGenerator:
                         f.write(f"# Phase {i} Implementation Plan\n\n")
                         f.write(f"<!-- Phase ID: {phase_id} -->\n\n")  # Add phase identifier as comment
 
-                        # Architecture reminder - Clean Module Structure included
-                        f.write("## ⚠️ IMPORTANT: Architectural Compliance (Clean Architecture, Clean Module Structure)\n")
-                        f.write("Code MUST follow architecture in `project_prompt.md` and Clean Module Structure.\n")
+                        # Architecture reminder - Clean Architecture Module Structure included
+                        f.write("## ⚠️ IMPORTANT: Architectural Compliance (Clean Architecture, Clean Architecture Module Structure)\n")
+                        f.write("Code MUST follow architecture in `project_prompt.md` and Clean Architecture Module Structure.\n")
                         f.write("These rules are foundational and cannot be modified.\n")
                         f.write("The file `instructions.md` contains AI development assistant guidelines.\n")
-                        f.write("Refer to `project_prompt.md` for architecture and Clean Module Structure details.\n")
+                        f.write("Refer to `project_prompt.md` for architecture and Clean Architecture Module Structure details.\n")
                         f.write("AI assistant MUST adhere to these guidelines.\n\n")
 
                         f.write("## Implementation Requirements\n\n")
@@ -1413,7 +1413,7 @@ class PRDGenerator:
                         f.write("- Follow implementation steps in order, step by step.\n") # Baby steps in phase files
                         f.write("- After each step, start the app and verify implementation.\n") # Verification step in phase files
                         f.write("- Confirm step completion.\n")
-                        f.write("- Maintain consistent architecture and Clean Module Structure.\n") # Clean Module Structure in phase requirements
+                        f.write("- Maintain consistent architecture and Clean Architecture Module Structure.\n") # Clean Module Structure in phase requirements
                         f.write("- Get IDE AI verification before proceeding.\n\n")
                         f.write(phase)
                         f.write("\n\n## Completion Checklist\n\n")
@@ -1421,7 +1421,7 @@ class PRDGenerator:
                         f.write("- [ ] After each step, app started and functionality verified\n") # Verification checklist
                         f.write("- [ ] All tests passing\n")
                         f.write("- [ ] Code reviewed and documented\n")
-                        f.write("- [ ] Architectural compliance (Clean Architecture, Clean Module Structure) verified\n") # Clean Module Structure in checklist
+                        f.write("- [ ] Architectural compliance (Clean Architecture, Clean Architecture Module Structure) verified\n") # Clean Module Structure in checklist
                         f.write("- [ ] IDE AI verification received\n")
                 except IOError as e:
                     logging.error(f"Failed to write to {phase_file}: {e}")
