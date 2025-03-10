@@ -4,12 +4,12 @@ A Python tool that automatically generates comprehensive, implementation-ready P
 
 ## Features
 
-- **AI-Powered Document Generation**: Uses Claude 3 to create detailed, contextual PRD content
+- **AI-Powered Document Generation**: Uses Claude APIs to create detailed, contextual PRD content
 - **Dynamic Phase Extraction**: Automatically identifies implementation phases from project descriptions
 - **Multi-File Output**: Creates structured files for each implementation phase
 - **Intelligent Caching**: Saves API responses to reduce token usage and improve performance
 - **Token Usage Tracking**: Monitors and displays all token usage, both for API calls and cache savings
-- **Clean Architecture Module Structure Support**: Generates documents with the Clean Architecture "Cosmos Pattern"
+- **Clean Architecture Module Structure Support**: Generates documents with a clean architecture design
 - **Cross-Platform Support**: Works on Windows, macOS, and Linux
 
 ## Prerequisites
@@ -88,7 +88,7 @@ The generated PRD is designed for a step-by-step implementation with an AI assis
 
 1. **Project Configuration**: Use `project_prompt.md` as the project-wide AI rulebook that ensures the AI assistant follows consistent guidelines throughout all phases of development. This file defines:
    - Project architecture requirements
-   - Clean Architecture principles (Cosmos Pattern)
+   - Clean Architecture principles
    - Coding standards and patterns
    - Security practices
    - Interface design principles
@@ -105,7 +105,7 @@ The generated PRD is designed for a step-by-step implementation with an AI assis
    - Once phase 1 is complete and verified, move on to `phase_02.md`, and so on
    - The AI must follow the rules in `project_prompt.md` for all implementations
 
-4. **Baby Steps Approach**: Each phase document breaks implementation into small, verifiable steps. Take one step at a time and verify functionality before moving to the next.
+4. **Step-by-Step Approach**: Each phase document breaks implementation into small, verifiable steps. Take one phase at a time or one step at a time depending on the target app and verify functionality before moving to the next.
 
 ### Statistics Output
 
@@ -137,7 +137,7 @@ The tool tracks and displays all token usage, both for API calls and cache savin
 
 ### Phase Extraction
 
-The tool analyzes your project description to identify implementation phases. For best results, format phases in your description using:
+The tool analyses your project description to identify implementation phases. For best results, format phases in your description using:
 ```
 ## Implementation Phases
 
@@ -145,9 +145,9 @@ The tool analyzes your project description to identify implementation phases. Fo
 2. **Core Functionality Phase**: Description...
 ```
 
-### Clean Architecture Module Structure Support (Cosmos Pattern)
+### Clean Architecture Module Structure Support
 
-Generated documents include the Clean Architecture Module Structure pattern, also referred to as the "Cosmos Pattern":
+Generated documents include the Clean Architecture Module Structure pattern:
 ```
 <module_name>/
 ├── public/           # Public interfaces defining the contract
@@ -161,7 +161,7 @@ Generated documents include the Clean Architecture Module Structure pattern, als
 You can modify the following settings through environment variables in your `.env` file:
 
 - `CLAUDE_MODEL`: The Claude model to use (default: claude-3-5-haiku-latest)
-  - You can configure any available Claude model including claude-3-7-sonnet-latest, claude-3-opus-20240229, etc.
+  - You can configure any available Claude model as needed including claude-3-7-sonnet-latest.
   - Note that costs vary significantly depending on the selected model. More capable models like Opus and Sonnet have higher token costs than Haiku.
 - `ANTHROPIC_API_KEY`: Your Anthropic API key
 - `PRD_PATH`: Custom directory for storing generated PRD files (default: ~/prds)
