@@ -67,9 +67,9 @@ The script will ask you for:
 
 The generator creates a directory with the following files:
 
-- **phase_00.md**: Guidelines for AI-assisted development and project overview
-- **project_prompt.md**: Project architecture blueprint with Clean Architecture Module Structure details and project-wide AI rules
-- **phase_01.md, phase_02.md, etc.**: Implementation plans for each development phase
+- **phase_00.md**: The first file to share with your IDE AI assistant, containing the project overview
+- **project_prompt.md**: Project-wide AI rules and guidelines for the AI to follow throughout the development
+- **phase_01.md, phase_02.md, etc.**: Step-by-step implementation plans for each development phase
 
 ### Directory Structure
 
@@ -86,9 +86,7 @@ Where `<PRD_PATH>` is:
 
 The generated PRD is designed for a step-by-step implementation with an AI assistant:
 
-1. **Initial Context Setting**: Share `phase_00.md` with your IDE AI assistant first to give it an overview of the application you want to develop.
-
-2. **Project Configuration**: Use `project_prompt.md` as the project-wide AI rulebook that ensures the AI assistant follows consistent guidelines throughout all phases of development. This file defines:
+1. **Project Configuration**: Use `project_prompt.md` as the project-wide AI rulebook that ensures the AI assistant follows consistent guidelines throughout all phases of development. This file defines:
    - Project architecture requirements
    - Clean Architecture principles (Cosmos Pattern)
    - Coding standards and patterns
@@ -96,6 +94,8 @@ The generated PRD is designed for a step-by-step implementation with an AI assis
    - Interface design principles
    - Testing requirements
    - The AI must adhere to these rules for all implementation phases
+
+2. **Initial Context Setting**: Share `phase_00.md` with your IDE AI assistant first to give it an overview of the application you want to develop.
 
 3. **Implementation by Phases**: For each phase:
    - Provide the content of `phase_01.md` to the AI
