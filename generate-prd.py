@@ -1070,7 +1070,7 @@ def main():
             print("1. Configure project-wide AI rules with project_prompt.md")
             print("2. Share phase_00.md with IDE AI assistant for project overview")
             print("3. Start implementation: copy phase_01.md content to IDE AI chat")
-            print("4. Follow phase documents in order for implementation, take one incremental step at a time and verify after each step.")
+            print("4. Follow phase documents in order for implementation, and take one incremental step at a time and verify after each step.")
             print("5. Get IDE AI verification before moving to next step or phase.")
 
     except KeyboardInterrupt:
