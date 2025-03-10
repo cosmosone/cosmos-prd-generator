@@ -35,9 +35,13 @@ import sys
 import time
 import threading
 import logging
+import argparse
+import shutil
 from typing import List, Tuple, Dict
 from pathlib import Path
 import re
+import json
+import hashlib
 
 import anthropic
 from dotenv import load_dotenv
@@ -77,8 +81,8 @@ BASE_DELAY = 5  # seconds
 DEFAULT_MAX_TOKENS = 4096  # Updated default for Claude-3
 TOKENS_PER_CHAR = 0.3  # Rough estimation ratio for fallback calculation
 
-def load_environment() -> Tuple[str, str]:
-    """Load API key and model from environment."""
+def load_environment() -> Tuple[str, str, Path, Path]:
+    """Load API key, model, and paths from environment."""
     script_dir = Path(__file__).resolve().parent
     env_path = script_dir / '.env'
 
@@ -100,8 +104,31 @@ def load_environment() -> Tuple[str, str]:
     if not model or not api_key or api_key == 'your-api-key-here':
         logging.error("Please set CLAUDE_MODEL and ANTHROPIC_API_KEY in your .env file")
         sys.exit(1)
+        
+    # Get PRD path from environment or use default
+    prd_path_str = os.getenv('PRD_PATH')
+    if prd_path_str:
+        prd_path = Path(prd_path_str)
+    else:
+        prd_path = Path.home() / "prds"
+    
+    # Ensure PRD directory exists
+    prd_path.mkdir(exist_ok=True, parents=True)
+    
+    # Get cache path from environment or use default
+    cache_path_str = os.getenv('CACHE_PATH')
+    if cache_path_str:
+        cache_path = Path(cache_path_str)
+    else:
+        cache_path = Path.home() / ".prd_generator" / "cache"
+    
+    # Ensure cache directory exists
+    cache_path.mkdir(exist_ok=True, parents=True)
+    
+    logging.info(f"Using PRD output path: {prd_path}")
+    logging.info(f"Using cache directory: {cache_path}")
 
-    return model, api_key
+    return model, api_key, prd_path, cache_path
 
 class ProgressSpinner:
     """Progress spinner for console."""
@@ -137,16 +164,99 @@ class ProgressSpinner:
 
 class PRDGenerator:
     """PRD Generator Class."""
-    def __init__(self, model: str, api_key: str):
+    def __init__(self, model: str, api_key: str, prd_path: Path, cache_path: Path, clear_cache: bool = False):
         try:
             self.client = anthropic.Anthropic(api_key=api_key)
             self.model = model
+            self.prd_path = prd_path
+            self.cache_path = cache_path
             self.spinner = ProgressSpinner()
             self.sections: List[str] = []
             self.project_info: Dict = {} # Initialize project_info here
+            self.api_calls = 0
+            self.cache_hits = 0
+            self.input_tokens_saved = 0
+            self.output_tokens_saved = 0
+            self.total_cache_entries = 0
+            self.tokens_used_input = 0  # Track input tokens used when not using cache
+            self.tokens_used_output = 0  # Track output tokens used when not using cache
+            
+            # Clear cache if requested
+            if clear_cache:
+                self._clear_cache()
+            
+            # Load cache statistics
+            self._init_cache()
         except Exception as e:
             logging.error(f"Error initializing Anthropic client: {e}")
             sys.exit(1)
+            
+    def _clear_cache(self):
+        """Clear the cache directory"""
+        try:
+            if self.cache_path.exists():
+                logging.info(f"Clearing cache directory: {self.cache_path}")
+                # Remove all files in the cache directory
+                for file in self.cache_path.glob("*"):
+                    file.unlink()
+                logging.info("Cache cleared successfully")
+        except Exception as e:
+            logging.error(f"Error clearing cache: {e}")
+
+    def _init_cache(self):
+        """Initialize the cache system"""
+        try:
+            # Count existing cache entries
+            cache_files = list(self.cache_path.glob("*.json"))
+            self.total_cache_entries = len(cache_files)
+            logging.info(f"Found {self.total_cache_entries} existing cache entries")
+        except Exception as e:
+            logging.warning(f"Error initializing cache: {e}")
+            self.total_cache_entries = 0
+
+    def _get_cache_key(self, prompt: str, model: str) -> str:
+        """Generate a cache key for a prompt and model."""
+        hash_input = f"{prompt}:{model}".encode('utf-8')
+        return hashlib.md5(hash_input).hexdigest()
+
+    def _check_cache(self, prompt: str) -> Tuple[bool, str, int, int]:
+        """Check if a response is in the cache."""
+        cache_key = self._get_cache_key(prompt, self.model)
+        cache_file = self.cache_path / f"{cache_key}.json"
+        
+        if cache_file.exists():
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cache_data = json.load(f)
+                input_tokens = cache_data.get('input_tokens', 0)
+                output_tokens = cache_data.get('output_tokens', 0)
+                return True, cache_data['response'], input_tokens, output_tokens
+            except Exception as e:
+                logging.warning(f"Error reading cache file {cache_file}: {e}")
+        
+        return False, "", 0, 0
+
+    def _save_to_cache(self, prompt: str, response: str, input_tokens: int, output_tokens: int):
+        """Save a response to the cache."""
+        try:
+            cache_key = self._get_cache_key(prompt, self.model)
+            cache_file = self.cache_path / f"{cache_key}.json"
+            
+            cache_data = {
+                'prompt': prompt,
+                'response': response,
+                'model': self.model,
+                'timestamp': time.time(),
+                'input_tokens': input_tokens,
+                'output_tokens': output_tokens
+            }
+            
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(cache_data, f, ensure_ascii=False, indent=2)
+            
+            self.total_cache_entries += 1
+        except Exception as e:
+            logging.warning(f"Error saving to cache: {e}")
 
     def _estimate_tokens(self, prompt: str) -> int:
         """Estimate token count for a prompt with fallback to character-based estimation."""
@@ -165,9 +275,19 @@ class PRDGenerator:
             return DEFAULT_MAX_TOKENS
 
     def _generate_section(self, prompt: str, identifier: str) -> str:
-        """Generate PRD section with retry logic."""
+        """Generate PRD section with retry logic and caching."""
         retries = 0
         messages = [{"role": "user", "content": prompt}]
+        
+        # Check cache first
+        is_cached, cached_response, input_tokens, output_tokens = self._check_cache(prompt)
+        if is_cached:
+            self.cache_hits += 1
+            self.input_tokens_saved += input_tokens
+            self.output_tokens_saved += output_tokens
+            logging.info(f"Cache hit for section '{identifier}'. Tokens saved: {input_tokens} input, {output_tokens} output")
+            self.spinner.update_message(f"Using cached response for: {identifier}... (Tokens saved: {input_tokens + output_tokens})")
+            return cached_response
         
         # Estimate required tokens
         estimated_tokens = self._estimate_tokens(prompt)
@@ -188,6 +308,20 @@ class PRDGenerator:
                     if block.type == "text":
                         completion += block.text
                 if completion.strip():
+                    # Increment API call counter
+                    self.api_calls += 1
+                    
+                    # Calculate token usage
+                    input_tokens = estimated_tokens
+                    output_tokens = self._estimate_tokens(completion)
+                    
+                    # Track token usage for statistics
+                    self.tokens_used_input += input_tokens
+                    self.tokens_used_output += output_tokens
+                    
+                    # Save to cache
+                    self._save_to_cache(prompt, completion, input_tokens, output_tokens)
+                    
                     return completion
                 else:
                     raise ValueError("Empty completion received.")
@@ -215,7 +349,7 @@ class PRDGenerator:
 
     def get_project_info(self) -> dict:
         """Collect project information from user."""
-        print_header()
+        # No need to call print_header() here, it's called in main()
         info = {}
 
         info['name'] = input("\nEnter project name: ").strip()
@@ -590,9 +724,9 @@ class PRDGenerator:
         sections = final_sections
 
         self.spinner.update_message("Creating PRD files...")
-        dir_name = Path(f"{project_name.lower().replace(' ', '_')}_prd")
+        dir_name = self.prd_path / f"{project_name.lower().replace(' ', '_')}_prd"
         try:
-            dir_name.mkdir(exist_ok=True)
+            dir_name.mkdir(exist_ok=True, parents=True)
 
             # Create phase_00.md with initial project overview and basic instructions
             instructions_file = dir_name / "phase_00.md"
@@ -952,12 +1086,15 @@ class PRDGenerator:
 
             self.spinner.stop()
             print(f"\nPRD files created in '{dir_name}' directory.")
+            
+            # Remove duplicate statistics display since we show it in main()
             print("\nIMPORTANT:")
             print("1. Share phase_00.md with IDE AI assistant")
-            print("2. Reference project_prompt.md for project overview, architecture, and Cosmos Pattern") # Cosmos Pattern in important notes
+            print("2. Reference project_prompt.md for project overview, architecture, and Cosmos Pattern")
             print("3. Start implementation: copy phase_01.md content to IDE AI chat")
-            print("4. Follow phase documents in order for implementation, baby step by baby step, verifying after each step.") # Baby steps and verification in notes
+            print("4. Follow phase documents in order for implementation, baby step by baby step, verifying after each step.")
             print("5. Get IDE AI verification before moving to next step or phase.")
+
         except Exception as e:
             self.spinner.stop()
             logging.error(f"Error saving PRD files: {e}")
@@ -978,8 +1115,16 @@ def print_header():
 def main():
     """Main function to run the PRD generator."""
     try:
-        model, api_key = load_environment()
-        generator = PRDGenerator(model, api_key)
+        # Set up command-line argument parsing
+        parser = argparse.ArgumentParser(description='Generate a Product Requirements Document (PRD) with dynamic phases')
+        parser.add_argument('--clear-cache', action='store_true', help='Clear the cache before running')
+        args = parser.parse_args()
+        
+        # Print header only once at the start
+        print_header()
+        
+        model, api_key, prd_path, cache_path = load_environment()
+        generator = PRDGenerator(model, api_key, prd_path, cache_path, args.clear_cache)
         project_info = generator.get_project_info()
         # Store project_info in the generator for later use
         generator.project_info = project_info
@@ -988,9 +1133,38 @@ def main():
         if prd_sections:
             generator.save_prd(prd_sections, project_info['name'])
             print("\nPRD generation complete! Implementation guide in generated directory.")
-            print("Share phase_00.md with IDE AI, then proceed phase by phase, baby step by baby step.") # Baby steps in main output
-            print("Verify after each step and phase by starting the app and checking functionality.") # Verification in main output
-            print("Remember IDE AI verification before moving to next step or phase.")
+            
+            # Display cache statistics
+            print("\n📊 Generation Statistics")
+            print(f"• Output directory: {generator.prd_path / project_info['name'].lower().replace(' ', '_')}_prd")
+            print(f"• Cache directory: {generator.cache_path}")
+            print(f"• Model: {generator.model}")
+            print(f"• API calls: {generator.api_calls}")
+            print(f"• Cache hits: {generator.cache_hits}")
+            print(f"• Total cache entries: {generator.total_cache_entries}")
+            
+            # Show tokens used for API calls
+            if generator.api_calls > 0:
+                input_tokens_formatted = f"{generator.tokens_used_input:,}"
+                output_tokens_formatted = f"{generator.tokens_used_output:,}"
+                total_tokens_formatted = f"{generator.tokens_used_input + generator.tokens_used_output:,}"
+                print(f"• Tokens used: {input_tokens_formatted} input, {output_tokens_formatted} output")
+                print(f"• Total tokens used: {total_tokens_formatted}")
+            
+            # Show tokens saved from cache hits
+            if generator.cache_hits > 0:
+                input_tokens_formatted = f"{generator.input_tokens_saved:,}"
+                output_tokens_formatted = f"{generator.output_tokens_saved:,}"
+                total_tokens_formatted = f"{generator.input_tokens_saved + generator.output_tokens_saved:,}"
+                print(f"• Tokens saved: {input_tokens_formatted} input, {output_tokens_formatted} output")
+                print(f"• Total tokens saved: {total_tokens_formatted}")
+                
+            print("\nIMPORTANT:")
+            print("1. Share phase_00.md with IDE AI assistant")
+            print("2. Reference project_prompt.md for project overview, architecture, and Cosmos Pattern")
+            print("3. Start implementation: copy phase_01.md content to IDE AI chat")
+            print("4. Follow phase documents in order for implementation, baby step by baby step, verifying after each step.")
+            print("5. Get IDE AI verification before moving to next step or phase.")
 
     except KeyboardInterrupt:
         print("\n\nPRD generation cancelled.")
