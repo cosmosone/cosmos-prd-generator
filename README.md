@@ -67,8 +67,8 @@ The script will ask you for:
 
 The generator creates a directory with the following files:
 
-- **phase_00.md**: The first file to share with your IDE AI assistant, containing the project overview
 - **project_prompt.md**: Project-wide AI rules and guidelines for the AI to follow throughout the development
+- **phase_00.md**: The first file to share with your IDE AI assistant, containing the project overview
 - **phase_01.md, phase_02.md, etc.**: Step-by-step implementation plans for each development phase
 
 ### Directory Structure
