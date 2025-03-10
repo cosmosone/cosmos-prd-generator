@@ -32,7 +32,7 @@ A Python tool that automatically generates comprehensive, implementation-ready P
 
 3. Create a `.env` file in the project root with the following content:
    ```
-   CLAUDE_MODEL=claude-3-7-sonnet-latest
+   CLAUDE_MODEL=claude-3-5-haiku-latest
    ANTHROPIC_API_KEY=your-api-key-here
    # PRD_PATH=C:/Temp/prds  # Optional: Path to store PRD files
    # CACHE_PATH=C:/Temp/cache  # Optional: Path to store API cache
@@ -115,7 +115,7 @@ Upon completion, the generator displays detailed statistics:
 📊 Generation Statistics
 • Output directory: C:\Temp\prds\test_prd
 • Cache directory: C:\Users\username\.prd_generator\cache
-• Model: claude-3-7-sonnet-latest
+• Model: claude-3-5-haiku-latest
 • API calls: 3
 • Cache hits: 4
 • Total cache entries: 7
@@ -160,7 +160,9 @@ Generated documents include the Clean Architecture Module Structure pattern, als
 
 You can modify the following settings through environment variables in your `.env` file:
 
-- `CLAUDE_MODEL`: The Claude model to use (default: claude-3-7-sonnet-latest)
+- `CLAUDE_MODEL`: The Claude model to use (default: claude-3-5-haiku-latest)
+  - You can configure any available Claude model including claude-3-7-sonnet-latest, claude-3-opus-20240229, etc.
+  - Note that costs vary significantly depending on the selected model. More capable models like Opus and Sonnet have higher token costs than Haiku.
 - `ANTHROPIC_API_KEY`: Your Anthropic API key
 - `PRD_PATH`: Custom directory for storing generated PRD files (default: ~/prds)
 - `CACHE_PATH`: Custom directory for caching API responses (default: ~/.prd_generator/cache)

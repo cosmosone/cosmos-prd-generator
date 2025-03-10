@@ -93,7 +93,7 @@ def load_environment() -> Tuple[str, str, Path, Path]:
         logging.info(f"No .env file found at: {env_path}")
         logging.info("Creating .env file with required variables...")
         with open(env_path, 'w') as f:
-            f.write("CLAUDE_MODEL=claude-3-opus-20240229\n")
+            f.write("CLAUDE_MODEL=claude-3-5-haiku-latest\n")
             f.write("ANTHROPIC_API_KEY=your-api-key-here\n")
         logging.info("Please update the .env file with your API key and run the script again.")
         sys.exit(1)
@@ -101,8 +101,12 @@ def load_environment() -> Tuple[str, str, Path, Path]:
     model = os.getenv('CLAUDE_MODEL')
     api_key = os.getenv('ANTHROPIC_API_KEY')
 
-    if not model or not api_key or api_key == 'your-api-key-here':
-        logging.error("Please set CLAUDE_MODEL and ANTHROPIC_API_KEY in your .env file")
+    if not model:
+        model = "claude-3-5-haiku-latest"
+        logging.info(f"No CLAUDE_MODEL specified, defaulting to {model}")
+    
+    if not api_key or api_key == 'your-api-key-here':
+        logging.error("Please set ANTHROPIC_API_KEY in your .env file")
         sys.exit(1)
         
     # Get PRD path from environment or use default
