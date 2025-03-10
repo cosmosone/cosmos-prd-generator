@@ -135,16 +135,6 @@ The tool automatically caches responses to save time and reduce token usage. Sta
 
 The tool tracks and displays all token usage, both for API calls and cache savings. This helps you understand the resource impact and potential cost savings from using the cache.
 
-### Phase Extraction
-
-The tool analyses your project description to identify implementation phases. For best results, format phases in your description using:
-```
-## Implementation Phases
-
-1. **Foundation Phase**: Description...
-2. **Core Functionality Phase**: Description...
-```
-
 ### Clean Architecture Module Structure Support
 
 Generated documents include the Clean Architecture Module Structure pattern:
