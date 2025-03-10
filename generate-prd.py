@@ -395,7 +395,7 @@ class PRDGenerator:
             "2. Implementation Approach:\n"
             "   - Start with simple, working application first\n"
             "   - Verify each major step with a working build by starting the app\n" 
-            "   - Add complexity incrementally, one baby step at a time\n"
+            "   - Add complexity incrementally, one step at a time\n"
             "   - Keep each phase testable\n\n"
             "3. Code Structure:\n"
             "   - Clear naming conventions\n"
@@ -577,7 +577,7 @@ class PRDGenerator:
                 f"- Maintain consistent architecture (Clean Architecture)\n"
                 f"- Get IDE AI verification before proceeding\n\n"
                 "Provide:\n"
-                "1. Implementation Steps (Baby Steps):\n"
+                "1. Implementation Steps:\n"
                 "   - Concrete, verifiable tasks\n"
                 "   - Component specifications\n"
                 "   - Code structure\n"
@@ -768,7 +768,7 @@ class PRDGenerator:
                 f.write("   - Get AI verification before proceeding to the next step or phase\n")
                 f.write("   - Once phase 1 is complete and verified, move on to `phase_02.md`, and so on\n")
                 f.write("   - The AI must follow the rules in `project_prompt.md` for all implementations\n\n")
-                f.write("4. **Baby Steps Approach**: Each phase document breaks implementation into small, verifiable steps. Take one step at a time and verify functionality before moving to the next.\n\n")
+                f.write("4. **Step-by-Step Approach**: Each phase document breaks implementation into small, verifiable steps. Take one step at a time and verify functionality before moving to the next.\n\n")
                 
                 f.write("## IDE AI Assistant Guidelines\n\n")
                 f.write("The IDE AI Assistant should:\n\n")
@@ -779,13 +779,13 @@ class PRDGenerator:
                 f.write("5. Follow a systematic development process: understand, plan, implement, test, verify.\n")
                 f.write("6. Explain reasoning for architectural choices when implementing complex features.\n")
                 f.write("7. Suggest refactoring when code deviates from the defined architecture.\n")
-                f.write("8. Provide step-by-step development guidance following baby steps approach.\n")
+                f.write("8. Provide step-by-step development guidance following Step-by-Step approach.\n")
                 f.write("9. Include comprehensive tests as part of the implementation process.\n\n")
                 
                 f.write("## IDE AI DO NOT GUIDELINES\n\n")
                 f.write("The IDE AI Assistant should NOT:\n\n")
                 f.write("1. Skip ahead to later phases before current phase is fully implemented and verified.\n")
-                f.write("2. Implement multiple steps at once, bypassing the baby steps approach.\n")
+                f.write("2. Implement multiple steps at once, bypassing the Step-by-Step approach.\n")
                 f.write("3. Generate code that deviates from the Architecture Pattern defined in the PRD.\n")
                 f.write("4. Make assumptions about feature implementations without referring to detailed requirements.\n")
                 f.write("5. Leave security vulnerabilities or performance issues unaddressed.\n\n")
@@ -925,7 +925,7 @@ class PRDGenerator:
 
                 # Implementation Guidelines
                 f.write("## Implementation Guidelines\n")
-                f.write("- Implement one phase at a time, step by baby step.\n") # Baby steps guideline
+                f.write("- Implement one phase at a time, or one step at a time.\n") # Step-by-Step guideline
                 f.write("- Verify each phase is complete (start app and check) before next phase.\n") # Verification guideline
                 f.write("- Maintain architectural integrity (Clean Architecture, Cosmos Pattern) throughout.\n") # Cosmos Pattern guideline
                 f.write("- Test each component as implemented.\n")
@@ -986,14 +986,14 @@ class PRDGenerator:
                     if i > 1:
                         f.write(f"- Phase {i-1} complete and verified (by starting app)\n") # Verification in requirements
                         f.write("- All previous tests passing\n")
-                    f.write("- Follow implementation steps in order, one incremental step at a time.\n") # Baby steps in phase files
+                    f.write("- Follow implementation steps in order, one incremental step at a time.\n") # Step-by-Step in phase files
                     f.write("- After each step, start the app and verify implementation.\n") # Verification step in phase files
                     f.write("- Confirm step completion.\n")
                     f.write("- Maintain consistent architecture.\n") # Cosmos Pattern in phase requirements
                     f.write("- Get IDE AI verification before proceeding.\n\n")
                     f.write(phase)
                     f.write("\n\n## Completion Checklist\n\n")
-                    f.write("- [ ] All implementation steps completed (baby steps)\n")
+                    f.write("- [ ] All implementation steps completed (Step-by-Step)\n")
                     f.write("- [ ] After each step, app started and functionality verified\n")
                     f.write("- [ ] All tests passing\n")
                     f.write("- [ ] Code reviewed and documented\n")
