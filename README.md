@@ -59,7 +59,7 @@ The script will ask you for:
 
 The generator creates a directory with the following files:
 
-- **instructions.md**: Guidelines for AI-assisted development
+- **phase_00.md**: Guidelines for AI-assisted development
 - **project_prompt.md**: Project architecture blueprint with Clean Architecture Module Structure details
 - **phase_XX.md**: Implementation plans for each development phase
 
