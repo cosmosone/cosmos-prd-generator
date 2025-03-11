@@ -539,7 +539,7 @@ class PRDGenerator:
             
             # Restart spinner for each phase with clear message
             self.spinner.stop()
-            print(f"\rPreparing Phase {i}: {phase_name}...")
+            print(f"\rPhase {i}: {phase_name}...")
             self.spinner.start(f"Generating Phase {i}: {phase_name}...")
             
             phase_prompt = (
