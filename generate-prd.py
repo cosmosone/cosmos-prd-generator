@@ -369,7 +369,7 @@ class PRDGenerator:
         print("- Preferred Programming Language/Frameworks: (Optional)")
         print("- Are there any specific technologies to be used or avoided?")
         print("- Desired Design Style: (e.g., Sleek, Modern, Minimalistic, etc.)")
-        print("If you don't have specific preferences, the PRD will focus on architecture and design principles.\n")
+        print("If you don't have specific preferences, the PRD will attempt to fill in any gaps in the app/service design.\n")
         info['goal'] = self.get_multiline_input("Enter your project goal")
 
         # Check if technology is specified in the goal - keep this logic if needed for conditional prompts later
