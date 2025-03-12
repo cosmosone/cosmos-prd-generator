@@ -1134,6 +1134,17 @@ class PRDGenerator:
 
         self.spinner.update_message("Creating PRD files...")
         dir_name = self.prd_path / f"{project_name.lower().replace(' ', '_')}_prd"
+        
+        # Backup existing directory if it exists
+        if dir_name.exists():
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            backup_dir = self.prd_path / f"{project_name.lower().replace(' ', '_')}_prd_bak_{timestamp}"
+            self.spinner.update_message(f"Backing up existing directory to {backup_dir.name}...")
+            shutil.copytree(dir_name, backup_dir)
+            shutil.rmtree(dir_name)
+            logging.info(f"Backed up existing directory to {backup_dir}")
+            print(f"\rBacked up existing directory to: {backup_dir}")
+        
         try:
             dir_name.mkdir(exist_ok=True, parents=True)
 
