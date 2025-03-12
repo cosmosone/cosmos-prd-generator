@@ -382,9 +382,403 @@ class PRDGenerator:
 
         return info
 
+    def _generate_tech_recommendations(self, project_info: dict) -> dict:
+        """Generate technology stack recommendations based on project requirements."""
+        self.spinner.start("Generating technology recommendations...")
+        
+        tech_prompt = (
+            f"Based on the following project information, provide recommended technology choices:\n\n"
+            f"Project Name: {project_info['name']}\n"
+            f"Project Goal: {project_info['goal']}\n\n"
+            f"Please provide concise, specific technology recommendations for this project in the following categories. "
+            f"Do not include explanations, just the specific technology names and versions where appropriate:\n\n"
+            f"Programming Language:\n"
+            f"Frontend Framework (if applicable):\n"
+            f"Backend Framework (if applicable):\n"
+            f"Database (if applicable):\n"
+            f"UI Framework (if applicable):\n"
+            f"State Management (if applicable):\n"
+            f"Testing Framework:\n"
+            f"Data Persistence Strategy:\n"
+            f"Networking/API Approach:\n"
+            f"Styling/UI Design System:\n\n"
+            f"Note: If the project doesn't need a particular technology (e.g., no database needed for a simple tool), "
+            f"respond with 'N/A' for that category."
+        )
+        
+        tech_response = self._generate_section(tech_prompt, "tech_recommendations")
+        self.spinner.stop()
+        
+        # Parse the response into a structured format
+        tech_stack = {}
+        current_key = None
+        
+        # List of all expected keys for exact matching
+        expected_keys = [
+            "Programming Language", 
+            "Frontend Framework", 
+            "Backend Framework", 
+            "Database", 
+            "UI Framework", 
+            "State Management", 
+            "Testing Framework",
+            "Data Persistence Strategy",
+            "Networking/API Approach",
+            "Styling/UI Design System"
+        ]
+        
+        # Create a mapping of lowercase variations to the exact expected keys
+        key_mapping = {k.lower(): k for k in expected_keys}
+        
+        for line in tech_response.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Check if this is a category header
+            if ":" in line:
+                parts = line.split(":", 1)
+                key_candidate = parts[0].strip()
+                
+                # Try to match with expected keys (case insensitive)
+                matched_key = None
+                for expected_key in expected_keys:
+                    if key_candidate.lower() == expected_key.lower():
+                        matched_key = expected_key
+                        break
+                        
+                # If not directly matched, try to find a partial match
+                if not matched_key:
+                    for lower_key, exact_key in key_mapping.items():
+                        if lower_key in key_candidate.lower():
+                            matched_key = exact_key
+                            break
+                
+                if matched_key:
+                    current_key = matched_key
+                    value = parts[1].strip() if len(parts) > 1 else ""
+                    tech_stack[current_key] = value
+                else:
+                    # If we don't recognize this key, but it has content, add to current key if one exists
+                    if current_key and len(parts) > 1 and parts[1].strip():
+                        tech_stack[current_key] += " " + line
+            elif current_key and line:
+                # Append to current key if this is a continuation
+                tech_stack[current_key] += " " + line
+        
+        # Generate project vision and benefits
+        vision_prompt = (
+            f"Based on the following project information, provide a concise project vision and benefits:\n\n"
+            f"Project Name: {project_info['name']}\n"
+            f"Project Goal: {project_info['goal']}\n\n"
+            f"Please provide:\n"
+            f"1. A one-sentence project vision statement that captures the essence of the project\n"
+            f"2. The problem the project solves (1-2 sentences)\n"
+            f"3. The intended users of the project (be specific)\n"
+            f"4. Three core objectives of the project (what the project aims to achieve)\n"
+            f"5. The primary target audience (1 sentence, demographic details)\n"
+            f"6. Three specific success criteria for the project (measurable outcomes)\n\n"
+            f"Format each response as a simple bullet point starting with a hyphen (-). Keep responses concise, specific, and direct."
+        )
+        
+        self.spinner.start("Generating project vision and benefits...")
+        vision_response = self._generate_section(vision_prompt, "project_vision")
+        self.spinner.stop()
+        
+        # Parse vision response
+        vision_info = {
+            "vision_statement": "",
+            "problem_solved": "",
+            "intended_users": "",
+            "core_objectives": [],
+            "target_audience": "",
+            "success_criteria": []
+        }
+        
+        # Parse the response line by line
+        lines = vision_response.strip().split('\n')
+        bullet_points = [line.strip() for line in lines if line.strip().startswith('-')]
+        
+        # More robust parsing - assign each bullet point to the appropriate category
+        if len(bullet_points) >= 1:
+            vision_info["vision_statement"] = bullet_points[0][1:].strip()
+        
+        if len(bullet_points) >= 2:
+            vision_info["problem_solved"] = bullet_points[1][1:].strip()
+            
+        if len(bullet_points) >= 3:
+            vision_info["intended_users"] = bullet_points[2][1:].strip()
+        
+        # Extract core objectives (next 3 bullet points)
+        for i in range(3, min(6, len(bullet_points))):
+            vision_info["core_objectives"].append(bullet_points[i][1:].strip())
+            
+        if len(bullet_points) >= 7:
+            vision_info["target_audience"] = bullet_points[6][1:].strip()
+            
+        # Extract success criteria (last 3 bullet points or whatever is left)
+        for i in range(7, len(bullet_points)):
+            vision_info["success_criteria"].append(bullet_points[i][1:].strip())
+        
+        return {
+            "tech_stack": tech_stack,
+            "vision_info": vision_info
+        }
+
+    def _ensure_complete_tech_stack(self, project_info: dict) -> dict:
+        """Ensure all tech stack categories have values by asking AI for missing ones."""
+        tech_stack = project_info.get("tech_recommendations", {})
+        
+        # Required tech stack categories
+        required_categories = [
+            "Programming Language", 
+            "Frontend Framework",
+            "Backend Framework",
+            "Database",
+            "UI Framework",
+            "State Management",
+            "Testing Framework",
+            "Data Persistence Strategy",
+            "Networking/API Approach",
+            "Styling/UI Design System"
+        ]
+        
+        # Check for missing categories or N/A values
+        missing_categories = []
+        for category in required_categories:
+            if category not in tech_stack or not tech_stack[category] or tech_stack[category].lower() in ["n/a", "none"]:
+                missing_categories.append(category)
+        
+        # If we have missing categories, ask AI to fill them in
+        if missing_categories:
+            self.spinner.start(f"Getting recommendations for {len(missing_categories)} missing tech categories...")
+            
+            # Create a prompt to get recommendations for missing categories
+            missing_prompt = (
+                f"Based on the following project information, provide specific technology recommendations for ONLY these missing categories:\n\n"
+                f"Project Name: {project_info['name']}\n"
+                f"Project Goal: {project_info['goal']}\n\n"
+                f"For each of the following categories, provide a specific technology recommendation that would work well for this project. "
+                f"Be specific and concise (e.g., 'React 18.2' rather than just 'a modern JavaScript framework').\n\n"
+            )
+            
+            # List the missing categories
+            for category in missing_categories:
+                missing_prompt += f"{category}:\n"
+                
+            missing_prompt += (
+                f"\nProvide only the specific technology recommendation for each category, no explanations. "
+                f"If a category truly isn't applicable, respond with 'Not applicable for this project'."
+            )
+            
+            missing_response = self._generate_section(missing_prompt, "missing_tech_recommendations")
+            self.spinner.stop()
+            
+            # Parse the response to update the tech stack
+            current_category = None
+            for line in missing_response.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                # Check if this is a category header
+                matched_category = None
+                for category in missing_categories:
+                    if f"{category}:" in line:
+                        matched_category = category
+                        current_category = category
+                        value = line.split(":", 1)[1].strip() if ":" in line else ""
+                        if value and value.lower() not in ["n/a", "none", "not applicable", "not applicable for this project"]:
+                            tech_stack[current_category] = value
+                        break
+                        
+                # If not a category and we have a current category, append to it
+                if not matched_category and current_category and line:
+                    if current_category in tech_stack:
+                        tech_stack[current_category] += " " + line
+                    else:
+                        tech_stack[current_category] = line
+            
+        # Update the tech recommendations
+        project_info["tech_recommendations"] = tech_stack
+        return project_info
+        
+    def _ensure_complete_vision_info(self, project_info: dict) -> dict:
+        """Ensure all vision info components are filled in by asking AI for missing ones."""
+        vision_info = project_info.get("vision_info", {})
+        
+        # Check for missing vision components
+        missing_components = []
+        
+        if not vision_info.get("vision_statement"):
+            missing_components.append("vision_statement")
+            
+        if not vision_info.get("problem_solved"):
+            missing_components.append("problem_solved")
+            
+        if not vision_info.get("intended_users"):
+            missing_components.append("intended_users")
+            
+        if not vision_info.get("core_objectives") or len(vision_info.get("core_objectives", [])) < 3:
+            missing_components.append("core_objectives")
+            
+        if not vision_info.get("target_audience"):
+            missing_components.append("target_audience")
+            
+        if not vision_info.get("success_criteria") or len(vision_info.get("success_criteria", [])) < 3:
+            missing_components.append("success_criteria")
+            
+        # If we have missing components, ask AI to fill them in
+        if missing_components:
+            self.spinner.start(f"Getting {len(missing_components)} missing project vision components...")
+            
+            # Create a prompt to get the missing components
+            component_names = {
+                "vision_statement": "Project Vision Statement",
+                "problem_solved": "Problem Being Solved",
+                "intended_users": "Intended Users",
+                "core_objectives": "Core Objectives (3 specific objectives)",
+                "target_audience": "Target Audience",
+                "success_criteria": "Success Criteria (3 measurable outcomes)"
+            }
+            
+            missing_prompt = (
+                f"Based on the following project information, provide ONLY these missing project vision components:\n\n"
+                f"Project Name: {project_info['name']}\n"
+                f"Project Goal: {project_info['goal']}\n\n"
+                f"For each of the following components, provide a specific, detailed response:\n\n"
+            )
+            
+            # List the missing components
+            for component in missing_components:
+                missing_prompt += f"{component_names[component]}:\n"
+                
+            missing_prompt += (
+                f"\nFormat each response clearly with the component name followed by your answer. "
+                f"Be specific, clear, and focused on this particular project."
+            )
+            
+            missing_response = self._generate_section(missing_prompt, "missing_vision_components")
+            self.spinner.stop()
+            
+            # Parse the response to update the vision info
+            current_component = None
+            current_content = []
+            
+            # Create a mapping between prompts and our internal component names
+            component_mapping = {name.lower(): key for key, name in component_names.items()}
+            
+            for line in missing_response.split("\n"):
+                line = line.strip()
+                if not line:
+                    # When we hit an empty line, save current component if we have one
+                    if current_component and current_content:
+                        if current_component == "core_objectives" or current_component == "success_criteria":
+                            # For list components, we need to parse the bullet points
+                            if "core_objectives" not in vision_info:
+                                vision_info["core_objectives"] = []
+                            if "success_criteria" not in vision_info:
+                                vision_info["success_criteria"] = []
+                                
+                            # Join all content lines then split by bullet points or numbers
+                            content_text = " ".join(current_content)
+                            bullet_items = re.findall(r'(?:^|\n)[\s-]*([^-\n][^\n]*)', content_text)
+                            clean_items = [item.strip() for item in bullet_items if item.strip()]
+                            
+                            if current_component == "core_objectives":
+                                vision_info["core_objectives"].extend(clean_items)
+                            else:
+                                vision_info["success_criteria"].extend(clean_items)
+                        else:
+                            # For single value components, join the lines
+                            vision_info[current_component] = " ".join(current_content)
+                            
+                        current_content = []
+                    continue
+                
+                # Check if this line starts a new component
+                matched_component = None
+                for prompt_text, component_key in component_mapping.items():
+                    if line.lower().startswith(prompt_text.lower()):
+                        # Save previous component if we were tracking one
+                        if current_component and current_content:
+                            if current_component == "core_objectives" or current_component == "success_criteria":
+                                # For list components, we need to parse the bullet points
+                                if "core_objectives" not in vision_info:
+                                    vision_info["core_objectives"] = []
+                                if "success_criteria" not in vision_info:
+                                    vision_info["success_criteria"] = []
+                                    
+                                # Join all content lines then split by bullet points or numbers
+                                content_text = " ".join(current_content)
+                                bullet_items = re.findall(r'(?:^|\n)[\s-]*([^-\n][^\n]*)', content_text)
+                                clean_items = [item.strip() for item in bullet_items if item.strip()]
+                                
+                                if current_component == "core_objectives":
+                                    vision_info["core_objectives"].extend(clean_items)
+                                else:
+                                    vision_info["success_criteria"].extend(clean_items)
+                            else:
+                                # For single value components, join the lines
+                                vision_info[current_component] = " ".join(current_content)
+                                
+                        # Start new component
+                        matched_component = component_key
+                        current_component = component_key
+                        # Extract content after the colon
+                        if ":" in line:
+                            content = line.split(":", 1)[1].strip()
+                            if content:
+                                current_content = [content]
+                            else:
+                                current_content = []
+                        else:
+                            current_content = []
+                        break
+                
+                # If not a new component and we have a current component, add this line to it
+                if not matched_component and current_component:
+                    current_content.append(line)
+            
+            # Save the last component if we were tracking one
+            if current_component and current_content:
+                if current_component == "core_objectives" or current_component == "success_criteria":
+                    # For list components, we need to parse the bullet points
+                    if "core_objectives" not in vision_info:
+                        vision_info["core_objectives"] = []
+                    if "success_criteria" not in vision_info:
+                        vision_info["success_criteria"] = []
+                        
+                    # Join all content lines then split by bullet points or numbers
+                    content_text = " ".join(current_content)
+                    bullet_items = re.findall(r'(?:^|\n)[\s-]*([^-\n][^\n]*)', content_text)
+                    clean_items = [item.strip() for item in bullet_items if item.strip()]
+                    
+                    if current_component == "core_objectives":
+                        vision_info["core_objectives"].extend(clean_items)
+                    else:
+                        vision_info["success_criteria"].extend(clean_items)
+                else:
+                    # For single value components, join the lines
+                    vision_info[current_component] = " ".join(current_content)
+        
+        # Update the vision info
+        project_info["vision_info"] = vision_info
+        return project_info
+
     def generate_prd_sections(self, project_info: dict) -> List[str]:
         """Generate PRD sections dynamically."""
         sections = []
+        
+        # First, generate tech recommendations and project vision
+        recommendations = self._generate_tech_recommendations(project_info)
+        project_info["tech_recommendations"] = recommendations["tech_stack"]
+        project_info["vision_info"] = recommendations["vision_info"]
+        
+        # Ensure we have complete tech stack and vision info
+        project_info = self._ensure_complete_tech_stack(project_info)
+        project_info = self._ensure_complete_vision_info(project_info)
+        
         base_guidelines = (
             "Follow these specific guidelines when creating the PRD:\n"
             "1. Maintain Clean Architecture:\n"
@@ -551,19 +945,17 @@ class PRDGenerator:
                 f"Follow Clean Architecture principles.\n"
             )
 
-            # Conditionally add technology-specific guidance if tech was specified
-            if project_info.get('tech_specified', False):
-                if 'flutter' in project_info['goal'].lower():
-                    phase_prompt += (
-                        f"**Technology Focus**: Flutter development. Use Flutter widgets, follow best practices.\n"
-                        f"**State Management**: BLoC or Provider based on complexity.\n"
-                    )
-                elif 'chrome extension' in project_info['goal'].lower() or 'next.js' in project_info['goal'].lower():
-                    phase_prompt += (
-                        f"**Technology Focus**: Chrome Extension development, potentially using web technologies (HTML, CSS, JavaScript, React/Next.js).\n"
-                        f"**Component Framework**: Consider React or Vue for UI modularity.\n"
-                    )
-                # Add more conditional blocks for other technologies if needed
+            # Add technology stack to the prompt
+            if project_info.get("tech_recommendations"):
+                tech_recommendations = project_info["tech_recommendations"]
+                phase_prompt += f"**Technology Stack**:\n"
+                
+                # Add each technology if it's specified
+                for tech_key, tech_value in tech_recommendations.items():
+                    if tech_value and tech_value.lower() not in ["n/a", "none"]:
+                        phase_prompt += f"- {tech_key}: {tech_value}\n"
+                
+                phase_prompt += "\n"
 
             phase_prompt += (
                 f"{base_guidelines}\n"
@@ -653,11 +1045,15 @@ class PRDGenerator:
         return phase_descriptions
 
 
-    def save_prd(self, sections: List[str], project_name: str):
+    def save_prd(self, sections: List[str], project_name: str, project_info: dict = None):
         """Save PRD sections into Markdown files."""
         if not sections:
             logging.error("No PRD content to save.")
             return
+        
+        # Use the stored project_info if none is provided
+        if project_info is None:
+            project_info = self.project_info
 
         # Process sections to ensure proper formatting of code blocks and diagrams
         processed_sections = []
@@ -824,13 +1220,31 @@ class PRDGenerator:
 
                 # Vision and Core Goals
                 f.write("## Project Vision and Core Goals\n")
+                
+                # Add vision statement
                 if description:
                     f.write(f"- {description}\n")
-                if not description:
-                    f.write("- [Primary purpose of the application/extension in 1-2 sentences]\n")
-                f.write("- [Key user benefits/value proposition]\n")
-                f.write("- [Primary target audience]\n")
-                f.write("- [Success criteria for the project]\n\n")
+                else:
+                    f.write(f"- {project_info['vision_info']['vision_statement']}\n")
+                
+                # Add problem being solved
+                f.write(f"- {project_info['vision_info']['problem_solved']}\n")
+                
+                # Add intended users
+                f.write(f"- {project_info['vision_info']['intended_users']}\n")
+                
+                # Add core objectives
+                for objective in project_info['vision_info']['core_objectives']:
+                    f.write(f"- {objective}\n")
+                
+                # Add target audience
+                f.write(f"- {project_info['vision_info']['target_audience']}\n")
+                
+                # Add success criteria
+                for criterion in project_info['vision_info']['success_criteria']:
+                    f.write(f"- {criterion}\n")
+                
+                f.write("\n")
 
                 # Key Architectural Principles
                 f.write("## Key Architectural Principles (Clean Architecture)\n") # Clean Architecture in heading
@@ -891,13 +1305,46 @@ class PRDGenerator:
                     for tech in tech_stack[:6]:
                         f.write(f"{tech}\n")
                 else:
-                    # Generic tech stack
-                    f.write("- **Frontend**: [Frontend framework/language (e.g., React, Vue, Svelte, HTML/JS)]\n")
-                    f.write("- **Architecture Pattern**: Clean Architecture, Cosmos Pattern for modules\n") # Cosmos Pattern in tech stack
-                    f.write("- **State Management**: [State management approach (e.g., Context API, Redux, Zustand)]\n")
-                    f.write("- **Styling**: [UI design system/approach (e.g., CSS frameworks, styled components)]\n")
-                    f.write("- **Data Persistence**: [Local storage solution (e.g., browser local storage, IndexedDB)]\n")
-                    f.write("- **Networking**: [API communication approach (e.g., Fetch API, Axios)]\n")
+                    tech_recommendations = project_info["tech_recommendations"]
+                    
+                    # Programming Language
+                    if "Programming Language" in tech_recommendations:
+                        f.write(f"- **Programming Language**: {tech_recommendations['Programming Language']}\n")
+                    
+                    # Frontend Framework
+                    if "Frontend Framework" in tech_recommendations:
+                        f.write(f"- **Frontend Framework**: {tech_recommendations['Frontend Framework']}\n")
+                    
+                    # Architecture Pattern is always Clean Architecture
+                    f.write(f"- **Architecture Pattern**: Clean Architecture, Cosmos Pattern for modules\n")
+                    
+                    # State Management
+                    if "State Management" in tech_recommendations:
+                        f.write(f"- **State Management**: {tech_recommendations['State Management']}\n")
+                    
+                    # Styling/UI Design
+                    if "Styling/UI Design System" in tech_recommendations:
+                        f.write(f"- **Styling**: {tech_recommendations['Styling/UI Design System']}\n")
+                    
+                    # Data Persistence
+                    if "Data Persistence Strategy" in tech_recommendations:
+                        f.write(f"- **Data Persistence**: {tech_recommendations['Data Persistence Strategy']}\n")
+                    
+                    # Backend Framework (if applicable)
+                    if "Backend Framework" in tech_recommendations:
+                        f.write(f"- **Backend**: {tech_recommendations['Backend Framework']}\n")
+                    
+                    # Database (if applicable)
+                    if "Database" in tech_recommendations:
+                        f.write(f"- **Database**: {tech_recommendations['Database']}\n")
+                    
+                    # Networking/API
+                    if "Networking/API Approach" in tech_recommendations:
+                        f.write(f"- **Networking**: {tech_recommendations['Networking/API Approach']}\n")
+                    
+                    # Testing Framework
+                    if "Testing Framework" in tech_recommendations:
+                        f.write(f"- **Testing**: {tech_recommendations['Testing Framework']}\n")
 
                 f.write("\n")
 
@@ -965,14 +1412,39 @@ class PRDGenerator:
                     # Architecture reminder - Cosmos Pattern included
                     f.write("## 🔧 Technical Architecture\n\n")
                     f.write("### Technology Stack Overview\n\n")
-                    f.write("- **Programming Language**: [As specified or recommended]\n") # Language
-                    f.write("- **Frontend Framework**: [As specified or recommended]\n") # Frontend
-                    f.write("- **Backend Framework**: [As specified or recommended]\n") # Backend
-                    f.write("- **Database**: [As specified or recommended]\n") # Database
-                    f.write("- **Architecture Pattern**: Clean Architecture\n") # Clean Architecture
-                    f.write("- **UI Framework**: [As specified or recommended]\n") # UI Framework
-                    f.write("- **State Management**: [As specified or recommended]\n") # State Management
-                    f.write("- **Testing Framework**: [As specified or recommended]\n") # Testing
+                    
+                    tech_recommendations = project_info.get("tech_recommendations", {})
+                    
+                    # Programming Language
+                    if "Programming Language" in tech_recommendations:
+                        f.write(f"- **Programming Language**: {tech_recommendations['Programming Language']}\n")
+                    
+                    # Frontend Framework
+                    if "Frontend Framework" in tech_recommendations:
+                        f.write(f"- **Frontend Framework**: {tech_recommendations['Frontend Framework']}\n")
+                    
+                    # Backend Framework
+                    if "Backend Framework" in tech_recommendations:
+                        f.write(f"- **Backend Framework**: {tech_recommendations['Backend Framework']}\n")
+                    
+                    # Database
+                    if "Database" in tech_recommendations:
+                        f.write(f"- **Database**: {tech_recommendations['Database']}\n")
+                    
+                    # Architecture Pattern is always Clean Architecture
+                    f.write("- **Architecture Pattern**: Clean Architecture, Cosmos Pattern for modules\n")
+                    
+                    # UI Framework
+                    if "UI Framework" in tech_recommendations:
+                        f.write(f"- **UI Framework**: {tech_recommendations['UI Framework']}\n")
+                    
+                    # State Management
+                    if "State Management" in tech_recommendations:
+                        f.write(f"- **State Management**: {tech_recommendations['State Management']}\n")
+                    
+                    # Testing Framework
+                    if "Testing Framework" in tech_recommendations:
+                        f.write(f"- **Testing Framework**: {tech_recommendations['Testing Framework']}\n")
                     
                     f.write("\n## 📚 Technical Guidelines\n\n")
                     f.write("- Follow clean architecture principles with clear separation of concerns.\n") # Clean Architecture
@@ -1038,7 +1510,7 @@ def main():
         prd_sections = generator.generate_prd_sections(project_info)
 
         if prd_sections:
-            generator.save_prd(prd_sections, project_info['name'])
+            generator.save_prd(prd_sections, project_info['name'], project_info)
             print("\nPRD generation complete! Implementation guide in generated directory.")
             
             # Display cache statistics
