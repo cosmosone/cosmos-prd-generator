@@ -1319,8 +1319,10 @@ class PRDGenerator:
                 
                 # Add success criteria
                 for criterion in project_info['vision_info']['success_criteria']:
-                    f.write(f"- {criterion}\n")
-                
+                    # Only write non-empty criteria
+                    if criterion and criterion.strip():
+                        f.write(f"- {criterion}\n")
+
                 f.write("\n")
 
                 # Key Architectural Principles
