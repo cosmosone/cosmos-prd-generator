@@ -1153,7 +1153,73 @@ class PRDGenerator:
             with instructions_file.open('w', encoding='utf-8') as f:
                 f.write(f"# {project_name} - IDE AI Instructions\n\n")
                 f.write("## Project Definition\n\n")
-                f.write(sections[0])
+                
+                # Filter out or modify the general technology recommendations in the overview
+                overview_lines = sections[0].split('\n')
+                in_tech_section = False
+                tech_section_start = False
+                filtered_overview = []
+                
+                for line in overview_lines:
+                    # Detect technology section
+                    if "Technology Recommendations" in line or "Tech Stack" in line:
+                        in_tech_section = True
+                        tech_section_start = True
+                        filtered_overview.append(line)  # Keep the heading
+                        
+                        # Add the specific tech stack instead of general categories
+                        filtered_overview.append("\nUsing the following specific technology stack:\n")
+                        
+                        tech_recommendations = project_info["tech_recommendations"]
+                        
+                        # Add technology stack details
+                        if "Programming Language" in tech_recommendations:
+                            filtered_overview.append(f"- **Programming Language**: {tech_recommendations['Programming Language']}")
+                        
+                        if "Frontend Framework" in tech_recommendations:
+                            filtered_overview.append(f"- **Frontend Framework**: {tech_recommendations['Frontend Framework']}")
+                        
+                        filtered_overview.append(f"- **Architecture Pattern**: Clean Architecture")
+                        
+                        if "State Management" in tech_recommendations:
+                            filtered_overview.append(f"- **State Management**: {tech_recommendations['State Management']}")
+                        
+                        if "Styling/UI Design System" in tech_recommendations:
+                            filtered_overview.append(f"- **Styling**: {tech_recommendations['Styling/UI Design System']}")
+                        
+                        if "Data Persistence Strategy" in tech_recommendations:
+                            filtered_overview.append(f"- **Data Persistence**: {tech_recommendations['Data Persistence Strategy']}")
+                        
+                        if "Backend Framework" in tech_recommendations:
+                            filtered_overview.append(f"- **Backend**: {tech_recommendations['Backend Framework']}")
+                        
+                        if "Database" in tech_recommendations:
+                            filtered_overview.append(f"- **Database**: {tech_recommendations['Database']}")
+                        
+                        if "Networking/API Approach" in tech_recommendations:
+                            filtered_overview.append(f"- **Networking**: {tech_recommendations['Networking/API Approach']}")
+                        
+                        if "Testing Framework" in tech_recommendations:
+                            filtered_overview.append(f"- **Testing**: {tech_recommendations['Testing Framework']}")
+                        
+                        continue
+                    
+                    # Skip general tech categories but keep other parts of the tech section
+                    if in_tech_section:
+                        if line.startswith('###') or line.startswith('##'):
+                            # Found the next section heading
+                            in_tech_section = False
+                            filtered_overview.append(line)
+                        elif not line.strip().lower().startswith(('**backend', '**database', '**infrastructure', '**ai', '**payment', '**monitoring')):
+                            # Skip general categories and options but keep other content
+                            if not (tech_section_start and not line.strip()):  # Skip first empty line after heading
+                                filtered_overview.append(line)
+                        tech_section_start = False
+                    else:
+                        filtered_overview.append(line)
+                
+                # Write the filtered overview
+                f.write('\n'.join(filtered_overview))
                 f.write("\n\n## AI Development Assistant Guidelines\n\n")
 
                 # Include the full AI Assistant Guidelines in phase_00.md
@@ -1327,7 +1393,7 @@ class PRDGenerator:
                         f.write(f"- **Frontend Framework**: {tech_recommendations['Frontend Framework']}\n")
                     
                     # Architecture Pattern is always Clean Architecture
-                    f.write(f"- **Architecture Pattern**: Clean Architecture, Cosmos Pattern for modules\n")
+                    f.write(f"- **Architecture Pattern**: Clean Architecture\n")
                     
                     # State Management
                     if "State Management" in tech_recommendations:
@@ -1385,7 +1451,7 @@ class PRDGenerator:
                 f.write("## Implementation Guidelines\n")
                 f.write("- Implement one phase at a time, or one step at a time.\n") # Step-by-Step guideline
                 f.write("- Verify each phase is complete (start app and check) before next phase.\n") # Verification guideline
-                f.write("- Maintain architectural integrity (Clean Architecture, Cosmos Pattern) throughout.\n") # Cosmos Pattern guideline
+                f.write("- Maintain architectural integrity (Clean Architecture) throughout.\n") # Modified guideline
                 f.write("- Test each component as implemented.\n")
                 f.write("- Document key design decisions.\n")
 
@@ -1418,70 +1484,82 @@ class PRDGenerator:
                 phase = phase.replace("software_architecture.md", "project_prompt.md")
 
                 with phase_file.open('w', encoding='utf-8') as f:
-                    f.write(f"# Phase {i} Implementation Plan\n\n")
+                    try:
+                        f.write(f"# Phase {i} Implementation Plan\n\n")
 
-                    # Architecture reminder - Cosmos Pattern included
-                    f.write("## 🔧 Technical Architecture\n\n")
-                    f.write("### Technology Stack Overview\n\n")
-                    
-                    tech_recommendations = project_info.get("tech_recommendations", {})
-                    
-                    # Programming Language
-                    if "Programming Language" in tech_recommendations:
-                        f.write(f"- **Programming Language**: {tech_recommendations['Programming Language']}\n")
-                    
-                    # Frontend Framework
-                    if "Frontend Framework" in tech_recommendations:
-                        f.write(f"- **Frontend Framework**: {tech_recommendations['Frontend Framework']}\n")
-                    
-                    # Backend Framework
-                    if "Backend Framework" in tech_recommendations:
-                        f.write(f"- **Backend Framework**: {tech_recommendations['Backend Framework']}\n")
-                    
-                    # Database
-                    if "Database" in tech_recommendations:
-                        f.write(f"- **Database**: {tech_recommendations['Database']}\n")
-                    
-                    # Architecture Pattern is always Clean Architecture
-                    f.write("- **Architecture Pattern**: Clean Architecture, Cosmos Pattern for modules\n")
-                    
-                    # UI Framework
-                    if "UI Framework" in tech_recommendations:
-                        f.write(f"- **UI Framework**: {tech_recommendations['UI Framework']}\n")
-                    
-                    # State Management
-                    if "State Management" in tech_recommendations:
-                        f.write(f"- **State Management**: {tech_recommendations['State Management']}\n")
-                    
-                    # Testing Framework
-                    if "Testing Framework" in tech_recommendations:
-                        f.write(f"- **Testing Framework**: {tech_recommendations['Testing Framework']}\n")
-                    
-                    f.write("\n## 📚 Technical Guidelines\n\n")
-                    f.write("- Follow clean architecture principles with clear separation of concerns.\n") # Clean Architecture
-                    f.write("- Ensure proper dependency injection and interface-based design.\n") # DI
-                    f.write("- Use appropriate design patterns to solve common problems.\n") # Design Patterns
-                    f.write("- Prioritize testability in all components.\n") # Testing
-                    f.write("- Ensure proper error handling and user feedback.\n") # Error handling
-                    f.write("- Maintain architectural integrity throughout.\n") # Architecture
+                        # Architecture reminder - removed Cosmos Pattern reference
+                        f.write("## 🔧 Technical Architecture\n\n")
+                        f.write("### Technology Stack Overview\n\n")
+                        
+                        tech_recommendations = project_info.get("tech_recommendations", {})
+                        
+                        # Programming Language
+                        if "Programming Language" in tech_recommendations:
+                            f.write(f"- **Programming Language**: {tech_recommendations['Programming Language']}\n")
+                        
+                        # Frontend Framework
+                        if "Frontend Framework" in tech_recommendations:
+                            f.write(f"- **Frontend Framework**: {tech_recommendations['Frontend Framework']}\n")
+                        
+                        # Architecture Pattern is always Clean Architecture
+                        f.write(f"- **Architecture Pattern**: Clean Architecture\n")
+                        
+                        # State Management
+                        if "State Management" in tech_recommendations:
+                            f.write(f"- **State Management**: {tech_recommendations['State Management']}\n")
+                        
+                        # Styling/UI Design
+                        if "Styling/UI Design System" in tech_recommendations:
+                            f.write(f"- **Styling**: {tech_recommendations['Styling/UI Design System']}\n")
+                        
+                        # Data Persistence
+                        if "Data Persistence Strategy" in tech_recommendations:
+                            f.write(f"- **Data Persistence**: {tech_recommendations['Data Persistence Strategy']}\n")
+                        
+                        # Backend Framework (if applicable)
+                        if "Backend Framework" in tech_recommendations:
+                            f.write(f"- **Backend**: {tech_recommendations['Backend Framework']}\n")
+                        
+                        # Database
+                        if "Database" in tech_recommendations:
+                            f.write(f"- **Database**: {tech_recommendations['Database']}\n")
+                        
+                        # Networking/API
+                        if "Networking/API Approach" in tech_recommendations:
+                            f.write(f"- **Networking**: {tech_recommendations['Networking/API Approach']}\n")
+                        
+                        # Testing Framework
+                        if "Testing Framework" in tech_recommendations:
+                            f.write(f"- **Testing**: {tech_recommendations['Testing Framework']}\n")
 
-                    f.write("\n## Implementation Requirements\n\n")
-                    if i > 1:
-                        f.write(f"- Phase {i-1} complete and verified (by starting app)\n") # Verification in requirements
-                        f.write("- All previous tests passing\n")
-                    f.write("- Follow implementation steps in order, one incremental step at a time.\n") # Step-by-Step in phase files
-                    f.write("- After each step, start the app and verify implementation.\n") # Verification step in phase files
-                    f.write("- Confirm step completion.\n")
-                    f.write("- Maintain consistent architecture.\n") # Cosmos Pattern in phase requirements
-                    f.write("- Get IDE AI verification before proceeding.\n\n")
-                    f.write(phase)
-                    f.write("\n\n## Completion Checklist\n\n")
-                    f.write("- [ ] All implementation steps completed (Step-by-Step)\n")
-                    f.write("- [ ] After each step, app started and functionality verified\n")
-                    f.write("- [ ] All tests passing\n")
-                    f.write("- [ ] Code reviewed and documented\n")
-                    f.write("- [ ] Architectural compliance verified\n")
-                    f.write("- [ ] IDE AI verification received\n")
+                        f.write("\n## 📚 Technical Guidelines\n\n")
+                        f.write("- Follow clean architecture principles with clear separation of concerns.\n") # Clean Architecture
+                        f.write("- Ensure proper dependency injection and interface-based design.\n") # DI
+                        f.write("- Use appropriate design patterns to solve common problems.\n") # Design Patterns
+                        f.write("- Prioritize testability in all components.\n") # Testing
+                        f.write("- Ensure proper error handling and user feedback.\n") # Error handling
+                        f.write("- Maintain architectural integrity throughout.\n") # Architecture
+
+                        f.write("\n## Implementation Requirements\n\n")
+                        if i > 1:
+                            f.write(f"- Phase {i-1} complete and verified (by starting app)\n") # Verification in requirements
+                            f.write("- All previous tests passing\n")
+                        f.write("- Follow implementation steps in order, one incremental step at a time.\n") # Step-by-Step in phase files
+                        f.write("- After each step, start the app and verify implementation.\n") # Verification step in phase files
+                        f.write("- Confirm step completion.\n")
+                        f.write("- Maintain consistent architecture.\n") # Removed Cosmos Pattern reference in phase requirements
+                        f.write("- Get IDE AI verification before proceeding.\n\n")
+                        f.write(phase)
+                        f.write("\n\n## Completion Checklist\n\n")
+                        f.write("- [ ] All implementation steps completed (Step-by-Step)\n")
+                        f.write("- [ ] After each step, app started and functionality verified\n")
+                        f.write("- [ ] All tests passing\n")
+                        f.write("- [ ] Code reviewed and documented\n")
+                        f.write("- [ ] Architectural compliance verified\n")
+                        f.write("- [ ] IDE AI verification received\n")
+                    except Exception as e:
+                        logging.error(f"Error writing to phase file {phase_file}: {e}")
+                        raise
 
             self.spinner.stop()
             print(f"\nPRD files created in '{dir_name}' directory.")
