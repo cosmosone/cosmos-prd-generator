@@ -1583,14 +1583,15 @@ class PRDGenerator:
                         f.write("- Maintain architectural integrity throughout.\n") # Architecture
 
                         f.write("\n## Implementation Requirements\n\n")
+                        f.write("- Review README.md first to understand current project status and development progress\n")  # New instruction
                         if i > 1:
-                            f.write(f"- Phase {i-1} complete and verified (by starting app)\n") # Verification in requirements
+                            f.write(f"- Phase {i-1} complete and verified (by starting app)\n")
                             f.write("- All previous tests passing\n")
-                        f.write("- Follow implementation steps in order, one incremental step at a time.\n") # Step-by-Step in phase files
-                        f.write("- After each step, start the app and verify implementation.\n") # Verification step in phase files
-                        f.write("- Update README.md with completed step details and verification status.\n") # New README update requirement
+                        f.write("- Follow implementation steps in order, one incremental step at a time.\n")
+                        f.write("- After each step, start the app and verify implementation.\n")
+                        f.write("- Update README.md with completed step details and verification status.\n")
                         f.write("- Confirm step completion.\n")
-                        f.write("- Maintain consistent architecture.\n") # Removed Cosmos Pattern reference in phase requirements
+                        f.write("- Maintain consistent architecture.\n")
                         f.write("- Get IDE AI verification before proceeding.\n\n")
                         f.write(phase)
                         f.write("\n\n## Completion Checklist\n\n")
