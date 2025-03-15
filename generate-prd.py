@@ -1262,7 +1262,7 @@ class PRDGenerator:
                 f.write("3. Generate code that deviates from the Architecture Pattern defined in the PRD.\n")
                 f.write("4. Make assumptions about feature implementations without referring to detailed requirements.\n")
                 f.write("5. Leave security vulnerabilities or performance issues unaddressed.\n\n")
-                f.write("Refer to project_prompt.md for detailed technical architecture.\n\n")
+                f.write("Refer to the project-wide project_prompt configured for detailed technical architecture.\n\n")
 
             # Create project_prompt.md with focused project information
             project_prompt_file = dir_name / "project_prompt.md"
