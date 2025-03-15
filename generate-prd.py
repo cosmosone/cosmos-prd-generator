@@ -21,7 +21,7 @@ Workflow for IDE AI Integration:
    - Paste the content into the IDE AI chat interface.
    - For each implementation step in the phase document, ask the IDE AI for assistance,
      e.g., 'Help me implement step 1: ...'
-   - Ensure that the IDE AI strictly adheres to the architectural guidelines defined in 'project_prompt.md'
+   - Ensure that the IDE AI strictly adheres to the architectural guidelines defined in the project prompt AI rules.
    - Prioritize architectural compliance and code quality throughout the implementation.
    - Always verify the IDE AI's suggestions against the project architecture.
    - After each implementation step and at the end of each phase, run the application to verify correct implementation.
@@ -994,7 +994,7 @@ class PRDGenerator:
                 f"- Copy ENTIRE phase document content to IDE AI chat.\n"
                 f"- Paste directly into IDE AI chat interface.\n"
                 f"- For each implementation step, ask IDE AI for assistance (e.g., 'Help me implement step 1...').\n"
-                f"- AI MUST follow architectural guidelines in `project_prompt.md`.\n"
+                f"- AI MUST follow architectural guidelines in the project prompt.\n"
                 f"- Verify each step by starting the app.\n"
                 f"- Confirm step completion and get AI verification before next step.\n"
                 f"- **Design Focus**: Sleek, modern, minimalistic UI design.\n"
@@ -1225,7 +1225,7 @@ class PRDGenerator:
                 # Include the full AI Assistant Guidelines in phase_00.md
                 f.write("## AI Assistant Workflow Process\n\n")
                 f.write("The generated PRD is designed for a step-by-step implementation with an AI assistant:\n\n")
-                f.write("1. **Project Configuration**: Use `project_prompt.md` as the project-wide AI rulebook that ensures the AI assistant follows consistent guidelines throughout all phases of development. This file defines:\n")
+                f.write("1. **Project Configuration**: Use the project prompt as the project-wide AI rulebook that ensures the AI assistant follows consistent guidelines throughout all phases of development. This file defines:\n")
                 f.write("   - Project architecture requirements\n")
                 f.write("   - Clean Architecture principles\n")
                 f.write("   - Coding standards and patterns\n")
@@ -1240,14 +1240,14 @@ class PRDGenerator:
                 f.write("   - Verify each step works by starting the application\n")
                 f.write("   - Get AI verification before proceeding to the next step or phase\n")
                 f.write("   - Once phase 1 is complete and verified, move on to `phase_02.md`, and so on\n")
-                f.write("   - The AI must follow the rules in `project_prompt.md` for all implementations\n\n")
+                f.write("   - The AI must follow the rules in the project prompt for all implementations\n\n")
                 f.write("4. **Step-by-Step Approach**: Each phase document breaks implementation into small, verifiable steps. Take one step at a time and verify functionality before moving to the next.\n\n")
                 
                 f.write("## IDE AI Assistant Guidelines\n\n")
                 f.write("The IDE AI Assistant should:\n\n")
                 f.write("1. Always prioritize understanding over immediate implementation.\n")
-                f.write("2. Use the information in project_prompt.md as guiding principles.\n")
-                f.write("3. Strictly adhere to the architectural guidelines defined in project_prompt.md.\n")
+                f.write("2. Use the information in the project prompt as guiding principles.\n")
+                f.write("3. Strictly adhere to the architectural guidelines defined in the project prompt.\n")
                 f.write("4. Maintain proper encapsulation between modules as defined in the architecture.\n")
                 f.write("5. Follow a systematic development process: understand, plan, implement, test, verify.\n")
                 f.write("6. Explain reasoning for architectural choices when implementing complex features.\n")
@@ -1262,7 +1262,7 @@ class PRDGenerator:
                 f.write("3. Generate code that deviates from the Architecture Pattern defined in the PRD.\n")
                 f.write("4. Make assumptions about feature implementations without referring to detailed requirements.\n")
                 f.write("5. Leave security vulnerabilities or performance issues unaddressed.\n\n")
-                f.write("Refer to the project-wide project_prompt configured for the detailed technical architecture.\n\n")
+                f.write("Refer to the project-wide project prompt configured for the detailed technical architecture.\n\n")
 
             # Create project_prompt.md with focused project information
             project_prompt_file = dir_name / "project_prompt.md"
@@ -1502,7 +1502,7 @@ class PRDGenerator:
                         "- Create initial config files.\n"
                         "- Set up build process to compile and run project.\n"
                         "- Initialize README.md with project overview and setup instructions.\n"  # New README init
-                        "Refer to 'Tech Stack Summary' in `project_prompt.md` for technology-specific setup.\n\n"
+                        "Refer to 'Tech Stack Summary' in the project prompt for the technology-specific setup.\n\n"
                         "**README.md Initial Setup**:\n"  # New README setup section
                         "Create a comprehensive README.md that includes:\n"
                         "- Project name and description\n"
