@@ -1456,6 +1456,34 @@ class PRDGenerator:
                 f.write("- Maintain architectural integrity (Clean Architecture) throughout.\n") # Modified guideline
                 f.write("- Test each component as implemented.\n")
                 f.write("- Document key design decisions.\n")
+                f.write("- Update README.md after each implementation step with:\n")  # New README guidelines
+                f.write("  - Summary of completed functionality\n")
+                f.write("  - Updated project status\n")
+                f.write("  - New features or changes\n")
+                f.write("  - Known issues or limitations\n")
+                f.write("  - Updated setup/installation instructions if needed\n\n")
+
+                f.write("## README.md Management\n")  # New README.md section
+                f.write("The README.md file should be treated as a living document that reflects the current state of the project. After each implementation step:\n\n")
+                f.write("1. **Update Project Status**\n")
+                f.write("   - Current phase and step completion status\n")
+                f.write("   - Recently implemented features\n")
+                f.write("   - Verification status of new features\n\n")
+                f.write("2. **Document Changes**\n")
+                f.write("   - New dependencies or requirements\n")
+                f.write("   - Configuration changes\n")
+                f.write("   - API updates or changes\n")
+                f.write("   - New environment variables\n\n")
+                f.write("3. **Update Instructions**\n")
+                f.write("   - Setup and installation steps\n")
+                f.write("   - Build and run commands\n")
+                f.write("   - Testing procedures\n")
+                f.write("   - Troubleshooting guides\n\n")
+                f.write("4. **Track Progress**\n")
+                f.write("   - Completed features checklist\n")
+                f.write("   - Known issues and workarounds\n")
+                f.write("   - Upcoming features or tasks\n")
+                f.write("   - Dependencies and requirements\n\n")
 
             # Create phase files
             for i, phase in enumerate(sections[1:], 1):
@@ -1473,8 +1501,20 @@ class PRDGenerator:
                         "- Install dependencies/packages.\n"
                         "- Create initial config files.\n"
                         "- Set up build process to compile and run project.\n"
+                        "- Initialize README.md with project overview and setup instructions.\n"  # New README init
                         "Refer to 'Tech Stack Summary' in `project_prompt.md` for technology-specific setup.\n\n"
-                        "**Verification**: After setup, start the app to ensure basic project setup is correct and the app runs without errors.\n\n" # Verification in Phase 1 init
+                        "**README.md Initial Setup**:\n"  # New README setup section
+                        "Create a comprehensive README.md that includes:\n"
+                        "- Project name and description\n"
+                        "- Technology stack and requirements\n"
+                        "- Setup and installation instructions\n"
+                        "- Build and run commands\n"
+                        "- Development guidelines\n"
+                        "- Testing instructions\n"
+                        "- Project structure overview\n"
+                        "- Contributing guidelines\n"
+                        "- License information\n\n"
+                        "**Verification**: After setup, start the app to ensure basic project setup is correct and the app runs without errors.\n\n"
                     )
 
                     if "## 1. Implementation Steps" in phase:
@@ -1548,6 +1588,7 @@ class PRDGenerator:
                             f.write("- All previous tests passing\n")
                         f.write("- Follow implementation steps in order, one incremental step at a time.\n") # Step-by-Step in phase files
                         f.write("- After each step, start the app and verify implementation.\n") # Verification step in phase files
+                        f.write("- Update README.md with completed step details and verification status.\n") # New README update requirement
                         f.write("- Confirm step completion.\n")
                         f.write("- Maintain consistent architecture.\n") # Removed Cosmos Pattern reference in phase requirements
                         f.write("- Get IDE AI verification before proceeding.\n\n")
@@ -1555,6 +1596,7 @@ class PRDGenerator:
                         f.write("\n\n## Completion Checklist\n\n")
                         f.write("- [ ] All implementation steps completed (Step-by-Step)\n")
                         f.write("- [ ] After each step, app started and functionality verified\n")
+                        f.write("- [ ] README.md updated with completed step details\n")  # New README checklist item
                         f.write("- [ ] All tests passing\n")
                         f.write("- [ ] Code reviewed and documented\n")
                         f.write("- [ ] Architectural compliance verified\n")
