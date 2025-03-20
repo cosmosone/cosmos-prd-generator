@@ -965,7 +965,9 @@ class PRDGenerator:
                 f"- All previous tests passing\n"
                 f"- Follow implementation steps in order, one incremental step at a time\n"
                 f"- After each implementation step, start the app and verify the implementation.\n"
-                f"- Confirm completion of each step\n"
+                f"- For each step, implement the specified tests and ensure they pass.\n"  # Add this line
+                f"- Update README.md with completed step details and verification status.\n"
+                f"- Confirm step completion.\n"
                 f"- Maintain consistent architecture (Clean Architecture)\n"
                 f"- Get IDE AI verification before proceeding\n\n"
                 "Provide:\n"
@@ -990,12 +992,21 @@ class PRDGenerator:
                 "   - Success criteria for each step and phase\n"
                 "   - Error case examples\n"
                 "   - Integration points to verify\n\n"
+                # New section for step-specific tests based on technology stack
+                "5. Step-Specific Tests:\n"
+                "   - For EACH implementation step, provide detailed, technology-specific test code\n"
+                "   - Tests should use the correct testing framework from the technology stack\n"
+                "   - Include unit tests, integration tests, and UI tests as appropriate for each step\n"
+                "   - Tests should verify both successful operations and error handling\n"
+                "   - Provide commands to run tests and expected outcomes\n"
+                "   - Tests should follow testing best practices for the specific technology stack\n\n"
                 f"For IDE AI Usage:\n"
                 f"- Copy ENTIRE phase document content to IDE AI chat.\n"
                 f"- Paste directly into IDE AI chat interface.\n"
                 f"- For each implementation step, ask IDE AI for assistance (e.g., 'Help me implement step 1...').\n"
+                f"- After implementing each step, ask IDE AI for the corresponding tests (e.g., 'Help me test step 1...').\n"
                 f"- AI MUST follow architectural guidelines in the project prompt.\n"
-                f"- Verify each step by starting the app.\n"
+                f"- Verify each step by starting the app AND running the tests.\n"
                 f"- Confirm step completion and get AI verification before next step.\n"
                 f"- **Design Focus**: Sleek, modern, minimalistic UI design.\n"
                 f"- Ensure architectural integrity, encapsulation, consistent tech stack, and modern UI design.\n"
@@ -1237,6 +1248,7 @@ class PRDGenerator:
                 f.write("3. **Implementation by Phases**: For each phase:\n")
                 f.write("   - Provide the content of `phase_01.md` to the AI\n")
                 f.write("   - Implement one section at a time, in order\n")
+                f.write("   - Implement and run the tests for each step\n")  # Add this line
                 f.write("   - Verify each step works by starting the application\n")
                 f.write("   - Get AI verification before proceeding to the next step or phase\n")
                 f.write("   - Once phase 1 is complete and verified, move on to `phase_02.md`, and so on\n")
@@ -1590,6 +1602,7 @@ class PRDGenerator:
                             f.write("- All previous tests passing\n")
                         f.write("- Follow implementation steps in order, one incremental step at a time.\n")
                         f.write("- After each step, start the app and verify implementation.\n")
+                        f.write("- For each step, implement the specified tests and ensure they pass.\n")  # Add this line
                         f.write("- Update README.md with completed step details and verification status.\n")
                         f.write("- Confirm step completion.\n")
                         f.write("- Maintain consistent architecture.\n")
@@ -1598,7 +1611,8 @@ class PRDGenerator:
                         f.write("\n\n## Completion Checklist\n\n")
                         f.write("- [ ] All implementation steps completed (Step-by-Step)\n")
                         f.write("- [ ] After each step, app started and functionality verified\n")
-                        f.write("- [ ] README.md updated with completed step details\n")  # New README checklist item
+                        f.write("- [ ] For each step, all tests implemented and passing\n")  # Add this new checklist item
+                        f.write("- [ ] README.md updated with completed step details\n")
                         f.write("- [ ] All tests passing\n")
                         f.write("- [ ] Code reviewed and documented\n")
                         f.write("- [ ] Architectural compliance verified\n")
