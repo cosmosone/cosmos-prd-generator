@@ -1266,7 +1266,6 @@ class PRDGenerator:
                 f.write("7. Suggest refactoring when code deviates from the defined architecture.\n")
                 f.write("8. Provide step-by-step development guidance following Step-by-Step approach.\n")
                 f.write("9. Include comprehensive tests as part of the implementation process.\n\n")
-                f.write("10. Include comprehensive tests as part of the implementation process.\n\n")
                 
                 f.write("## IDE AI DO NOT GUIDELINES\n\n")
                 f.write("The IDE AI Assistant should NOT:\n\n")
