@@ -9,7 +9,11 @@ A Python tool that automatically generates comprehensive, implementation-ready P
 - **Multi-File Output**: Creates structured files for each implementation phase
 - **Intelligent Caching**: Saves API responses to reduce token usage and improve performance
 - **Token Usage Tracking**: Monitors and displays all token usage, both for API calls and cache savings
-- **Clean Architecture Module Structure Support**: Generates documents with a clean architecture design
+- **Technology Stack Detection**: Analyzes project requirements and recommends appropriate technologies
+- **Modern Architectural Patterns**: Supports Clean Architecture, Microservices, Event-Driven Architecture, DDD, and CQRS
+- **Enhanced Security Guidelines**: Implements OWASP Top 10 protection, OAuth 2.0/OIDC, zero-trust principles
+- **Comprehensive Testing Strategies**: Includes contract testing, property-based testing, visual regression testing
+- **Advanced DevOps Integration**: Provides CI/CD pipeline configuration, IaC, GitOps workflows, and observability
 - **Cross-Platform Support**: Works on Windows, macOS, and Linux
 
 ## Prerequisites
@@ -57,11 +61,25 @@ python generate-prd.py
   ```
   This is useful when you want to force regeneration of all content without using cached responses.
 
+- `--verbose`: Enable verbose logging
+  ```
+  python generate-prd.py --verbose
+  ```
+  This provides more detailed logging information during execution.
+
 ### Interactive Prompts
 
 The script will ask you for:
 1. Project name
 2. Detailed project goal/description
+
+When describing your project goal, consider including:
+- Target Platform/OS (e.g., Windows, Web, Mobile, Chrome Extension)
+- Preferred Programming Language/Frameworks (optional)
+- Any specific technologies to be used or avoided
+- Desired Design Style (e.g., Sleek, Modern, Minimalistic)
+
+The PRD generator will analyze your requirements and automatically recommend appropriate technologies.
 
 ### Output Files
 
@@ -88,11 +106,12 @@ The generated PRD is designed for a step-by-step implementation with an AI assis
 
 1. **Project Configuration**: Use `project_prompt.md` as the project-wide AI rulebook that ensures the AI assistant follows consistent guidelines throughout all phases of development. This file defines:
    - Project architecture requirements
-   - Clean Architecture principles
+   - Architectural patterns (Clean Architecture, Microservices, Event-Driven, DDD, CQRS)
    - Coding standards and patterns
-   - Security practices
+   - Security practices and OWASP compliance
    - Interface design principles
-   - Testing requirements
+   - Comprehensive testing strategies
+   - DevOps integration and CI/CD configuration
    - The AI must adhere to these rules for all implementation phases
 
 2. **Initial Context Setting**: Share `phase_00.md` with your IDE AI assistant first to give it an overview of the application you want to develop.
@@ -100,12 +119,20 @@ The generated PRD is designed for a step-by-step implementation with an AI assis
 3. **Implementation by Phases**: For each phase:
    - Provide the content of `phase_01.md` to the AI
    - Implement one section at a time, in order
-   - Verify each step works by starting the application
+   - Verify each step works by starting the application and running tests
+   - Update README.md after each implementation step
    - Get AI verification before proceeding to the next step or phase
    - Once phase 1 is complete and verified, move on to `phase_02.md`, and so on
    - The AI must follow the rules in `project_prompt.md` for all implementations
 
 4. **Step-by-Step Approach**: Each phase document breaks implementation into small, verifiable steps. Take one phase at a time or one step at a time depending on the target app and verify functionality before moving to the next.
+
+5. **README Management**: The README.md file should be updated after each implementation step with:
+   - Summary of completed functionality
+   - Updated project status
+   - New features or changes
+   - Known issues or limitations
+   - Updated setup/installation instructions if needed
 
 ### Statistics Output
 
@@ -135,16 +162,75 @@ The tool automatically caches responses to save time and reduce token usage. Sta
 
 The tool tracks and displays all token usage, both for API calls and cache savings. This helps you understand the resource impact and potential cost savings from using the cache.
 
-### Clean Architecture Module Structure Support
+### Technology Stack Detection
 
-Generated documents include the Clean Architecture Module Structure pattern:
-```
-<module_name>/
-├── public/           # Public interfaces defining the contract
-├── service/          # Interface and implementation separated
-├── factory/          # Factory for creating implementations
-└── controller/       # (If needed) Controller connecting to UI
-```
+The generator analyzes your project requirements and automatically recommends appropriate technologies including:
+- Programming Languages
+- Frontend Frameworks
+- Backend Frameworks
+- Databases
+- UI Frameworks
+- State Management
+- Testing Frameworks
+- Data Persistence Strategies
+- Networking/API Approaches
+- Styling/UI Design Systems
+
+### Modern Architectural Guidance
+
+Generated documents include support for modern architectural patterns:
+- Clean Architecture (separation of concerns with clear boundaries)
+- Microservices (independent, deployable services communicating via APIs)
+- Event-Driven Architecture (services communicating via events/messages)
+- Domain-Driven Design (model based on business domain)
+- CQRS/Event Sourcing (separate read and write operations)
+
+### Comprehensive Security Best Practices
+
+The generator includes enhanced security guidance covering:
+- OWASP Top 10 vulnerability protection
+- Environment variables for credentials management
+- Input validation and sanitization
+- Secure error handling
+- OAuth 2.0/OIDC for modern authentication
+- Zero-trust architecture principles
+- Supply chain security (dependency scanning)
+
+### Advanced Testing Strategies
+
+The generated PRDs include guidance on:
+- Unit testing for core functionality
+- Integration testing for components
+- End-to-end testing for features
+- Contract testing for service boundaries
+- Property-based testing
+- Visual regression testing for UI
+- Performance testing for critical paths
+- Security testing (SAST/DAST)
+
+### DevOps Integration
+
+The PRDs include guidance on modern development practices:
+- CI/CD pipeline configuration
+- Infrastructure as Code (IaC)
+- GitOps workflows
+- Containerization strategy
+- Observability practices (logging, metrics, tracing)
+- Monitoring and alerting configuration
+
+### Project Initialization Guidance
+
+The PRD includes comprehensive project initialization instructions:
+- Create project directory and repository
+- Set up development environment with SDKs/runtimes
+- Install dependencies/packages
+- Create configuration files
+- Configure linting and code formatting tools
+- Set up testing frameworks
+- Create CI/CD pipeline configuration
+- Initialize observability setup
+- Configure environment variables
+- Create comprehensive README.md
 
 ## Configuration
 
