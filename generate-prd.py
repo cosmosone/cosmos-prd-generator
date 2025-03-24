@@ -651,13 +651,9 @@ class PRDGenerator:
         print("If you don't have specific preferences, the PRD will attempt to fill in any gaps in the app/service design.\n")
         info['goal'] = self.get_multiline_input("Enter your project goal")
 
-        # Check if technology is specified in the goal - keep this logic if needed for conditional prompts later
-        tech_keywords = ['react', 'angular', 'vue', 'svelte', 'native', 'android', 'ios', 'swift',
-                        'kotlin', '.net', 'django', 'flask', 'express', 'node', 'spring', 'rails',
-                        'chrome extension', 'next.js', 'flutter']
-
-        has_tech_specified = any(keyword in info['goal'].lower() for keyword in tech_keywords)
-        info['tech_specified'] = has_tech_specified
+        # No longer using hard-coded tech keywords
+        # Technologies will be detected by AI during recommendation phase
+        info['tech_specified'] = False  # Default assumption, will be refined by AI analysis
 
         return info
 
@@ -682,7 +678,11 @@ class PRDGenerator:
             f"Based on the following project information, provide recommended technology choices:\n\n"
             f"Project Name: {project_info['name']}\n"
             f"Project Goal: {project_info['goal']}\n\n"
+            f"As an expert AI assistant, analyze the project requirements and determine if any specific technologies "
+            f"are mentioned or implied in the project goal. Then recommend the most appropriate modern technology stack "
+            f"that would be best suited for this specific project.\n\n"
             f"Please provide concise, specific technology recommendations for this project in the following categories. "
+            f"Choose modern, well-supported technologies with strong community backing. "
             f"Do not include explanations, just the specific technology names and versions where appropriate:\n\n"
             f"Programming Language:\n"
             f"Frontend Framework (if applicable):\n"
@@ -695,7 +695,7 @@ class PRDGenerator:
             f"Networking/API Approach:\n"
             f"Styling/UI Design System:\n\n"
             f"Note: If the project doesn't need a particular technology (e.g., no database needed for a simple tool), "
-            f"respond with 'N/A' for that category."
+            f"respond with 'N/A' for that category. Consider modern industry best practices and performance considerations."
         )
         
         tech_response = self._generate_section(tech_prompt, "tech_recommendations")
@@ -757,6 +757,12 @@ class PRDGenerator:
             elif current_key and line:
                 # Append to current key if this is a continuation
                 tech_stack[current_key] += " " + line
+        
+        # Determine if specific technologies were detected
+        project_info['tech_specified'] = any(
+            value and value.lower() not in ["n/a", "none", "not applicable"] 
+            for value in tech_stack.values()
+        )
         
         # Generate project vision and benefits
         vision_prompt = (
@@ -1073,52 +1079,87 @@ class PRDGenerator:
         
         base_guidelines = (
             "Follow these specific guidelines when creating the PRD:\n"
-            "1. Maintain Clean Architecture:\n"
-            "   - Clear separation of concerns\n"
-            "   - Dependency injection\n"
-            "   - Interface-based design\n"
-            "   - Testable components\n\n"
+            "1. Architectural Patterns (Choose most appropriate):\n"
+            "   - Clean Architecture: Separation of concerns with clear boundaries\n"
+            "   - Microservices: Independent, deployable services communicating via APIs\n"
+            "   - Event-Driven Architecture: Services communicating via events/messages\n"
+            "   - Domain-Driven Design (DDD): Model based on business domain\n"
+            "   - CQRS/Event Sourcing: Separate read and write operations\n\n"
             "2. Implementation Approach:\n"
             "   - Start with simple, working application first\n"
             "   - Verify each major step with a working build by starting the app\n" 
             "   - Add complexity incrementally, one step at a time\n"
-            "   - Keep each phase testable\n\n"
+            "   - Keep each phase testable\n"
+            "   - Use feature flags for progressive delivery when appropriate\n\n"
             "3. Code Structure:\n"
             "   - Clear naming conventions\n"
             "   - Consistent patterns\n"
             "   - Proper error handling\n"
-            "   - Comprehensive logging\n\n"
+            "   - Comprehensive logging\n"
+            "   - Dependency injection for loose coupling\n"
+            "   - Interface-based programming\n\n"
             "4. Security Best Practices:\n"
+            "   - OWASP Top 10 vulnerability protection\n"
             "   - Avoid hardcoding credentials; use environment variables or secure configuration\n"
             "   - Input validation and sanitization\n"
-            "   - Secure error handling (avoid exposing sensitive info)\n\n"
+            "   - Secure error handling (avoid exposing sensitive info)\n"
+            "   - OAuth 2.0/OIDC for modern authentication when needed\n"
+            "   - Zero-trust architecture principles\n"
+            "   - Supply chain security (dependency scanning)\n\n"
             "5. Testing Requirements:\n"
             "   - Unit tests for core functionality\n"
             "   - Integration tests for components\n"
             "   - End-to-end tests for features\n"
-            "   - Clear test criteria"
+            "   - Contract testing for service boundaries\n"
+            "   - Property-based testing where appropriate\n"
+            "   - Visual regression testing for UI components\n"
+            "   - Performance testing for critical paths\n"
+            "   - Security testing (SAST/DAST)\n\n"
+            "6. DevOps Integration:\n"
+            "   - CI/CD pipeline configuration\n"
+            "   - Infrastructure as Code (IaC)\n"
+            "   - GitOps workflows when applicable\n"
+            "   - Containerization strategy\n"
+            "   - Observability practices (logging, metrics, tracing)\n"
+            "   - Monitoring and alerting configuration\n"
         )
 
         ai_guidelines_ref = (
             "\n\n**Reference AI Development Assistant Guidelines:**\n"
             "The generated PRD and phase implementation plans are designed to be used with an AI development assistant. "
             "Ensure the AI assistant adheres to the following principles throughout the development process:\n\n"
-            "**AI Development Assistant Guidelines Summary (Refer to phase_00.md for full details):**\n"
-            "- **Accuracy & Honesty:** Avoid fabrication, mark opinions clearly.\n"
+            "**AI Development Assistant Guidelines Summary:**\n"
+            "- **Accuracy & Honesty:** Avoid fabrication, mark opinions clearly, cite sources when available.\n"
             "- **Troubleshooting:** Provide numbered, clear steps; favor systematic debugging; start simple.\n"
-            "- **Security:** No hardcoded credentials; follow security standards; input validation.\n"
+            "- **Security:** No hardcoded credentials; follow security standards; input validation; OWASP compliance.\n"
             "- **Dev & Prod:** Don't disrupt working features; targeted changes; prioritize security, maintainability, performance.\n"
-            "- **Performance:** Identify bottlenecks before optimizing; balance optimization.\n"
-            "- **Code & Docs:** Syntax highlighting; comments; reference docs.\n"
-            "- **Style & Tone:** Concise, clear, straightforward.\n"
+            "- **Performance:** Identify bottlenecks before optimizing; balance optimization with maintainability.\n"
+            "- **Code & Docs:** Clear syntax highlighting; helpful comments; reference documentation.\n"
+            "- **Style & Tone:** Concise, clear, straightforward communication; avoid unnecessary explanation.\n"
             "- **Design Philosophy:** Interface-based programming; dependency inversion; composition over inheritance.\n"
-            "- **Cross-Platform:** Awareness of cross-platform issues.\n"
-            "- **UI/UX:** Modern, accessible UI; consider accessibility.\n"
-            "- **API Design:** RESTful principles; GraphQL schemas; versioning; security.\n"
-            "- **Data Privacy:** Data minimization; privacy by design; DSARs; encryption.\n"
+            "- **Cross-Platform:** Awareness of path differences and environment-specific compatibility issues.\n"
+            "- **UI/UX:** Modern, accessible UI with WCAG compliance; consistent design system usage.\n"
+            "- **API Design:** RESTful/GraphQL best practices; versioning; security; consistent error handling.\n"
+            "- **Data Privacy:** Data minimization; privacy by design; GDPR/CCPA considerations; encryption.\n"
             "- **Clean Architecture:** Separate interfaces/implementations; factories; public APIs only.\n"
             "- **Pattern Continuity:** Maintain existing patterns and architecture.\n"
-            "- **Verification:** Start app to verify each phase and step.\n"
+            "- **Verification:** Start app and run tests to verify each phase and step.\n"
+            "- **Error Handling:** Provide clear recovery steps and explanations for common errors.\n"
+            "- **Edge Cases:** Consider boundary conditions, network failures, and resource constraints.\n\n"
+            "**Troubleshooting Scenarios:**\n"
+            "- If application fails to build: Verify dependencies, check syntax, review compiler errors systematically.\n"
+            "- If tests fail: Identify specific failing test, examine test context, verify inputs/mocks, check assertions.\n"
+            "- If runtime errors occur: Check logs, validate input data, examine error messages, trace execution flow.\n"
+            "- If performance issues arise: Profile application, identify bottlenecks, optimize critical paths first.\n"
+            "- If security vulnerabilities are found: Address OWASP issues first, verify input validation, check auth flows.\n\n"
+            "**Common Edge Cases to Handle:**\n"
+            "- Network connectivity loss during operations\n"
+            "- Invalid/unexpected user input formats\n"
+            "- Resource exhaustion (memory, disk space, database connections)\n"
+            "- Concurrent access conflicts\n"
+            "- API rate limiting and throttling\n"
+            "- Authentication/authorization failures\n"
+            "- Third-party service unavailability\n"
         )
 
 
@@ -1256,33 +1297,47 @@ class PRDGenerator:
                 f"- Phase {i-1} complete and verified (if not Phase 1)\n"
                 f"- All previous tests passing\n"
                 f"- Follow implementation steps in order, one incremental step at a time\n"
-                f"- After each implementation step, start the app and verify the implementation.\n"
-                f"- For each step, implement the specified tests and ensure they pass.\n"  # Add this line
-                f"- Update README.md with completed step details and verification status.\n"
-                f"- Confirm step completion.\n"
-                f"- Maintain consistent architecture (Clean Architecture)\n"
+                f"- After each implementation step, start the app and verify the implementation\n"
+                f"- For each step, implement comprehensive tests following these testing principles:\n"
+                f"  • Unit tests for all business logic and core functionality\n"
+                f"  • Integration tests for component interactions\n"
+                f"  • UI/UX tests for user interfaces\n"
+                f"  • Contract tests for service boundaries\n"
+                f"  • Performance tests for critical paths\n"
+                f"  • Security tests for sensitive operations\n"
+                f"- Include CI/CD configuration for automated testing and deployment\n"
+                f"- Implement observability with logging, metrics, and distributed tracing\n"
+                f"- Update README.md with completed step details and verification status\n"
+                f"- Confirm step completion with verification\n"
+                f"- Maintain consistent architecture\n"
                 f"- Get IDE AI verification before proceeding\n\n"
                 "Provide:\n"
                 "1. Implementation Steps:\n"
                 "   - Concrete, verifiable tasks\n"
                 "   - Component specifications\n"
                 "   - Code structure\n"
-                "   - Interface definitions\n\n"
+                "   - Interface definitions\n"
+                "   - Error handling approach\n"
+                "   - Edge case management\n\n"
                 "2. Completion Criteria:\n"
                 "   - Functionality to be implemented and verified by starting the app\n"
-                "   - Test requirements\n"
+                "   - Test requirements and coverage expectations\n"
                 "   - Performance metrics (if relevant)\n"
+                "   - Security compliance criteria\n"
                 "   - Quality checks\n\n"
                 "3. Sample Code (Illustrative):\n"
                 "   - Core interfaces\n"
                 "   - Key implementations\n"
-                "   - Test examples\n"
+                "   - Test examples (unit, integration, UI)\n"
+                "   - Error handling patterns\n"
                 "   - Configuration examples (avoid hardcoding, use placeholders)\n\n"
                 "4. Validation Steps (Verification Checklist):\n"
                 "   - Steps to start the app and verify functionality after each implementation step\n"
-                "   - Test scenarios\n"
+                "   - Test scenarios with expected outcomes\n"
+                "   - Security validation procedures\n"
+                "   - Performance validation methodology\n"
                 "   - Success criteria for each step and phase\n"
-                "   - Error case examples\n"
+                "   - Error case validation\n"
                 "   - Integration points to verify\n\n"
                 # New section for step-specific tests based on technology stack
                 "5. Step-Specific Tests:\n"
@@ -1290,8 +1345,17 @@ class PRDGenerator:
                 "   - Tests should use the correct testing framework from the technology stack\n"
                 "   - Include unit tests, integration tests, and UI tests as appropriate for each step\n"
                 "   - Tests should verify both successful operations and error handling\n"
+                "   - Include tests for edge cases and boundary conditions\n"
                 "   - Provide commands to run tests and expected outcomes\n"
                 "   - Tests should follow testing best practices for the specific technology stack\n\n"
+                # New section for DevOps and CI/CD
+                "6. DevOps Integration:\n"
+                "   - CI/CD pipeline configuration appropriate for the technology stack\n"
+                "   - Automated testing setup in the pipeline\n"
+                "   - Deployment strategies (blue-green, canary, etc. as appropriate)\n"
+                "   - Infrastructure as Code definitions when applicable\n"
+                "   - Monitoring and observability setup\n"
+                "   - Alerting configuration for critical failures\n\n"
                 f"For IDE AI Usage:\n"
                 f"- Copy ENTIRE phase document content to IDE AI chat.\n"
                 f"- Paste directly into IDE AI chat interface.\n"
@@ -1302,6 +1366,8 @@ class PRDGenerator:
                 f"- Confirm step completion and get AI verification before next step.\n"
                 f"- **Design Focus**: Sleek, modern, minimalistic UI design.\n"
                 f"- Ensure architectural integrity, encapsulation, consistent tech stack, and modern UI design.\n"
+                f"- Address all edge cases and error conditions.\n"
+                f"- Implement proper logging and observability.\n"
                 f"Format in Markdown. Concrete, testable implementation steps. No implementation without explicit confirmation."
             )
             phase_section = self._generate_section(phase_prompt, f"phase_{i}")
@@ -1806,22 +1872,39 @@ class PRDGenerator:
                 f.write("1. **Update Project Status**\n")
                 f.write("   - Current phase and step completion status\n")
                 f.write("   - Recently implemented features\n")
-                f.write("   - Verification status of new features\n\n")
+                f.write("   - Verification status of new features\n")
+                f.write("   - Test coverage and results summary\n\n")
                 f.write("2. **Document Changes**\n")
                 f.write("   - New dependencies or requirements\n")
                 f.write("   - Configuration changes\n")
                 f.write("   - API updates or changes\n")
-                f.write("   - New environment variables\n\n")
+                f.write("   - New environment variables\n")
+                f.write("   - Architecture decisions and rationale\n\n")
                 f.write("3. **Update Instructions**\n")
                 f.write("   - Setup and installation steps\n")
                 f.write("   - Build and run commands\n")
                 f.write("   - Testing procedures\n")
-                f.write("   - Troubleshooting guides\n\n")
+                f.write("   - Deployment procedures\n")
+                f.write("   - Troubleshooting guides\n")
+                f.write("   - Environment configuration\n\n")
                 f.write("4. **Track Progress**\n")
                 f.write("   - Completed features checklist\n")
                 f.write("   - Known issues and workarounds\n")
                 f.write("   - Upcoming features or tasks\n")
-                f.write("   - Dependencies and requirements\n\n")
+                f.write("   - Dependencies and requirements\n")
+                f.write("   - Performance metrics and benchmarks\n\n")
+                f.write("5. **Security and Compliance**\n")
+                f.write("   - Security features implemented\n")
+                f.write("   - Authentication/authorization model\n")
+                f.write("   - Data privacy considerations\n")
+                f.write("   - Regulatory compliance status\n")
+                f.write("   - Vulnerability assessment results\n\n")
+                f.write("6. **API Documentation**\n")
+                f.write("   - Endpoint specifications\n")
+                f.write("   - Request/response formats\n")
+                f.write("   - Authentication requirements\n")
+                f.write("   - Rate limiting information\n")
+                f.write("   - Example requests/responses\n\n")
 
             # Create phase files
             for i, phase in enumerate(sections[1:], 1):
@@ -1839,20 +1922,40 @@ class PRDGenerator:
                         "- Install dependencies/packages.\n"
                         "- Create initial config files.\n"
                         "- Set up build process to compile and run project.\n"
-                        "- Initialize README.md with project overview and setup instructions.\n"  # New README init
+                        "- Configure linting and code formatting tools.\n"
+                        "- Set up testing framework and write initial tests.\n"
+                        "- Create CI/CD pipeline configuration.\n"
+                        "- Initialize observability setup (logging, metrics).\n"
+                        "- Configure development environment variables.\n"
+                        "- Initialize README.md with comprehensive project information.\n"
                         "Refer to 'Tech Stack Summary' in the project prompt for the technology-specific setup.\n\n"
-                        "**README.md Initial Setup**:\n"  # New README setup section
+                        "**README.md Initial Setup**:\n"
                         "Create a comprehensive README.md that includes:\n"
                         "- Project name and description\n"
                         "- Technology stack and requirements\n"
+                        "- Architecture overview with diagram\n"
                         "- Setup and installation instructions\n"
+                        "- Environment configuration details\n"
                         "- Build and run commands\n"
-                        "- Development guidelines\n"
-                        "- Testing instructions\n"
-                        "- Project structure overview\n"
+                        "- Testing instructions and commands\n"
+                        "- API documentation (if applicable)\n"
+                        "- Development guidelines and coding standards\n"
+                        "- Project structure overview with explanations\n"
                         "- Contributing guidelines\n"
-                        "- License information\n\n"
-                        "**Verification**: After setup, start the app to ensure basic project setup is correct and the app runs without errors.\n\n"
+                        "- License information\n"
+                        "- Troubleshooting common issues\n"
+                        "- Performance considerations\n"
+                        "- Security guidelines\n\n"
+                        "**CI/CD Setup**:\n"
+                        "Configure a CI/CD pipeline that includes:\n"
+                        "- Automated builds on code changes\n"
+                        "- Static code analysis\n"
+                        "- Automated testing (unit, integration, etc.)\n"
+                        "- Security scanning\n"
+                        "- Deployment automation\n"
+                        "- Environment-specific configurations\n"
+                        "- Notification system for build/test failures\n\n"
+                        "**Verification**: After setup, start the app to ensure basic project setup is correct and the app runs without errors. Run the initial test suite to verify testing framework is properly configured.\n\n"
                     )
 
                     if "## 1. Implementation Steps" in phase:
