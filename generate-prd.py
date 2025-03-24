@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 """
 Enhanced Dynamic Phased PRD Generator Script using Anthropic Messages API
+"""
 
+#######################################################################################
+# DOCUMENTATION
+#######################################################################################
+"""
+OVERVIEW:
 This script generates a PRD (Product Requirements Document) with a dynamic number of phases
 based on user input, using the Anthropic API.
 
@@ -9,7 +15,7 @@ The PRD is designed to be technology-agnostic by default, focusing on clean arch
 design principles, and phased implementation. Technology-specific suggestions will be made
 only if the user explicitly specifies a technology stack in their project goal.
 
-Workflow for IDE AI Integration:
+WORKFLOW FOR IDE AI INTEGRATION:
 
 1. Generate PRD using this script.
 2. Locate the generated PRD directory (e.g., <project_name>_prd).
@@ -30,6 +36,9 @@ Workflow for IDE AI Integration:
    - It should be kept in the project directory for the IDE AI to reference throughout the development process.
 """
 
+#######################################################################################
+# IMPORTS
+#######################################################################################
 import os
 import sys
 import time
@@ -37,7 +46,9 @@ import threading
 import logging
 import argparse
 import shutil
-from typing import List, Tuple, Dict
+import tempfile
+import fcntl
+from typing import List, Tuple, Dict, Optional
 from pathlib import Path
 import re
 import json
@@ -46,7 +57,21 @@ import hashlib
 import anthropic
 from dotenv import load_dotenv
 
-# Configure logging for better error tracking with colors
+#######################################################################################
+# GLOBAL CONSTANTS
+#######################################################################################
+# Constants for retry logic in API calls
+MAX_RETRIES = 3
+BASE_DELAY = 5  # seconds
+DEFAULT_MAX_TOKENS = 4096  # Updated default for Claude-3
+TOKENS_PER_CHAR = 0.3  # Rough estimation ratio for fallback calculation
+TOKEN_SAFETY_MARGIN = 1.2  # 20% safety margin for token estimation
+MAX_CACHE_SIZE_MB = 100  # 100MB max cache size
+CACHE_RETENTION_DAYS = 30  # Retain cache entries for 30 days by default
+
+#######################################################################################
+# LOGGING SETUP
+#######################################################################################
 class ColoredFormatter(logging.Formatter):
     """Custom formatter to add colors to log messages."""
     COLORS = {
@@ -69,70 +94,54 @@ class CustomFilter(logging.Filter):
             return False
         return True
 
+# Configure logging
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 logger = logging.getLogger()
 handler = logger.handlers[0]
 handler.setFormatter(ColoredFormatter("%(levelname)s: %(message)s"))
 handler.addFilter(CustomFilter())
 
-# Constants for retry logic in API calls
-MAX_RETRIES = 3
-BASE_DELAY = 5  # seconds
-DEFAULT_MAX_TOKENS = 4096  # Updated default for Claude-3
-TOKENS_PER_CHAR = 0.3  # Rough estimation ratio for fallback calculation
+#######################################################################################
+# UTILITY CLASSES
+#######################################################################################
+class FileLock:
+    """File locking mechanism for concurrent access."""
+    def __init__(self, file_path):
+        self.file_path = file_path
+        self.lock_file = Path(f"{file_path}.lock")
+        self.lock_fd = None
 
-def load_environment() -> Tuple[str, str, Path, Path]:
-    """Load API key, model, and paths from environment."""
-    script_dir = Path(__file__).resolve().parent
-    env_path = script_dir / '.env'
+    def __enter__(self):
+        try:
+            # Create lock file if it doesn't exist
+            if not self.lock_file.exists():
+                self.lock_file.touch()
+            
+            # Open the lock file and acquire an exclusive lock
+            self.lock_fd = open(self.lock_file, 'w')
+            fcntl.flock(self.lock_fd, fcntl.LOCK_EX)
+            return self
+        except Exception as e:
+            logging.warning(f"Failed to acquire lock for {self.file_path}: {e}")
+            # Clean up if we failed
+            if self.lock_fd:
+                self.lock_fd.close()
+                self.lock_fd = None
+            return self
 
-    if env_path.exists():
-        logging.info(f"Loading environment variables from: {env_path}")
-        load_dotenv(dotenv_path=env_path)
-    else:
-        logging.info(f"No .env file found at: {env_path}")
-        logging.info("Creating .env file with required variables...")
-        with open(env_path, 'w') as f:
-            f.write("CLAUDE_MODEL=claude-3-5-haiku-latest\n")
-            f.write("ANTHROPIC_API_KEY=your-api-key-here\n")
-        logging.info("Please update the .env file with your API key and run the script again.")
-        sys.exit(1)
-
-    model = os.getenv('CLAUDE_MODEL')
-    api_key = os.getenv('ANTHROPIC_API_KEY')
-
-    if not model:
-        model = "claude-3-5-haiku-latest"
-        logging.info(f"No CLAUDE_MODEL specified, defaulting to {model}")
-    
-    if not api_key or api_key == 'your-api-key-here':
-        logging.error("Please set ANTHROPIC_API_KEY in your .env file")
-        sys.exit(1)
-        
-    # Get PRD path from environment or use default
-    prd_path_str = os.getenv('PRD_PATH')
-    if prd_path_str:
-        prd_path = Path(prd_path_str)
-    else:
-        prd_path = Path.home() / "prds"
-    
-    # Ensure PRD directory exists
-    prd_path.mkdir(exist_ok=True, parents=True)
-    
-    # Get cache path from environment or use default
-    cache_path_str = os.getenv('CACHE_PATH')
-    if cache_path_str:
-        cache_path = Path(cache_path_str)
-    else:
-        cache_path = Path.home() / ".prd_generator" / "cache"
-    
-    # Ensure cache directory exists
-    cache_path.mkdir(exist_ok=True, parents=True)
-    
-    logging.info(f"Using PRD output path: {prd_path}")
-    logging.info(f"Using cache directory: {cache_path}")
-
-    return model, api_key, prd_path, cache_path
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.lock_fd:
+            # Release the lock and close the file
+            fcntl.flock(self.lock_fd, fcntl.LOCK_UN)
+            self.lock_fd.close()
+            self.lock_fd = None
+            
+            # Try to remove the lock file, but don't fail if it doesn't exist
+            try:
+                if self.lock_file.exists():
+                    self.lock_file.unlink()
+            except Exception as e:
+                logging.warning(f"Failed to remove lock file {self.lock_file}: {e}")
 
 class ProgressSpinner:
     """Progress spinner for console."""
@@ -167,9 +176,98 @@ class ProgressSpinner:
         sys.stdout.write("\r" + " " * 100 + "\r")
         sys.stdout.flush()
 
+#######################################################################################
+# ENVIRONMENT FUNCTIONS
+#######################################################################################
+def load_environment() -> Tuple[str, str, Path, Path]:
+    """Load API key, model, and paths from environment."""
+    script_dir = Path(__file__).resolve().parent
+    env_path = script_dir / '.env'
 
+    if env_path.exists():
+        logging.info(f"Loading environment variables from: {env_path}")
+        load_dotenv(dotenv_path=env_path)
+    else:
+        logging.info(f"No .env file found at: {env_path}")
+        logging.info("Creating .env file with required variables...")
+        with open(env_path, 'w') as f:
+            f.write("CLAUDE_MODEL=claude-3-5-haiku-latest\n")
+            f.write("ANTHROPIC_API_KEY=your-api-key-here\n")
+        logging.info("Please update the .env file with your API key and run the script again.")
+        sys.exit(1)
+
+    model = os.getenv('CLAUDE_MODEL')
+    api_key = os.getenv('ANTHROPIC_API_KEY')
+
+    if not model:
+        model = "claude-3-5-haiku-latest"
+        logging.info(f"No CLAUDE_MODEL specified, defaulting to {model}")
+    
+    if not api_key or api_key == 'your-api-key-here':
+        logging.error("Please set ANTHROPIC_API_KEY in your .env file")
+        sys.exit(1)
+        
+    # Get PRD path from environment or use default
+    prd_path_str = os.getenv('PRD_PATH')
+    if prd_path_str:
+        prd_path = Path(prd_path_str)
+    else:
+        # Fallback to user home directory if environment variable is not set
+        prd_path = Path.home() / "prds"
+    
+    # Ensure PRD directory exists
+    try:
+        prd_path.mkdir(exist_ok=True, parents=True)
+    except Exception as e:
+        logging.error(f"Error creating PRD directory at {prd_path}: {e}")
+        fallback_prd_path = Path.cwd() / "prds"
+        logging.info(f"Falling back to current working directory: {fallback_prd_path}")
+        fallback_prd_path.mkdir(exist_ok=True, parents=True)
+        prd_path = fallback_prd_path
+    
+    # Get cache path from environment or use default
+    cache_path_str = os.getenv('CACHE_PATH')
+    if cache_path_str:
+        cache_path = Path(cache_path_str)
+    else:
+        # Fallback to user home directory if environment variable is not set
+        cache_path = Path.home() / ".prd_generator" / "cache"
+    
+    # Ensure cache directory exists
+    try:
+        cache_path.mkdir(exist_ok=True, parents=True)
+    except Exception as e:
+        logging.error(f"Error creating cache directory at {cache_path}: {e}")
+        fallback_cache_path = Path.cwd() / ".cache"
+        logging.info(f"Falling back to current working directory: {fallback_cache_path}")
+        fallback_cache_path.mkdir(exist_ok=True, parents=True)
+        cache_path = fallback_cache_path
+    
+    logging.info(f"Using PRD output path: {prd_path}")
+    logging.info(f"Using cache directory: {cache_path}")
+
+    return model, api_key, prd_path, cache_path
+
+def clear_screen():
+    """Clear the terminal screen."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+def print_header():
+    """Print the script header."""
+    clear_screen()
+    print("\n📄 Dynamic PRD Generator with Anthropic Claude\n")
+    print("This script generates a Product Requirements Document with a dynamic number of phases.")
+    print("Follow the prompts to provide project details...\n")
+
+#######################################################################################
+# PRD GENERATOR CLASS
+#######################################################################################
 class PRDGenerator:
     """PRD Generator Class."""
+    
+    #---------------------------------------------------------------------------------
+    # Initialization
+    #---------------------------------------------------------------------------------
     def __init__(self, model: str, api_key: str, prd_path: Path, cache_path: Path, clear_cache: bool = False):
         try:
             self.client = anthropic.Anthropic(api_key=api_key)
@@ -191,12 +289,15 @@ class PRDGenerator:
             if clear_cache:
                 self._clear_cache()
             
-            # Load cache statistics
+            # Load cache statistics and manage cache size
             self._init_cache()
         except Exception as e:
             logging.error(f"Error initializing Anthropic client: {e}")
             sys.exit(1)
-            
+    
+    #---------------------------------------------------------------------------------
+    # Cache Management Methods
+    #---------------------------------------------------------------------------------
     def _clear_cache(self):
         """Clear the cache directory"""
         try:
@@ -209,6 +310,69 @@ class PRDGenerator:
         except Exception as e:
             logging.error(f"Error clearing cache: {e}")
 
+    def _get_cache_size(self) -> int:
+        """Get the total size of the cache in bytes."""
+        total_size = 0
+        try:
+            for file in self.cache_path.glob("*.json"):
+                total_size += file.stat().st_size
+        except Exception as e:
+            logging.warning(f"Error calculating cache size: {e}")
+        return total_size
+    
+    def _prune_cache(self):
+        """Prune the cache by removing old or excess entries."""
+        try:
+            # Strategy 1: Remove entries older than CACHE_RETENTION_DAYS
+            now = time.time()
+            files_by_age = []
+            
+            # Collect files with their timestamps
+            for file in self.cache_path.glob("*.json"):
+                try:
+                    with open(file, 'r', encoding='utf-8') as f:
+                        cache_data = json.load(f)
+                    timestamp = cache_data.get('timestamp', 0)
+                    age_days = (now - timestamp) / (60 * 60 * 24)
+                    
+                    if age_days > CACHE_RETENTION_DAYS:
+                        # Remove files older than retention period
+                        file.unlink()
+                        logging.debug(f"Removed old cache entry: {file.name}")
+                    else:
+                        files_by_age.append((file, timestamp))
+                except Exception as e:
+                    logging.warning(f"Error processing cache file {file}: {e}")
+                    # If we can't read it, better to remove it
+                    try:
+                        file.unlink()
+                    except:
+                        pass
+            
+            # If we still need to reduce cache size
+            if self._get_cache_size() > (MAX_CACHE_SIZE_MB * 1024 * 1024):
+                # Sort by timestamp (oldest first)
+                files_by_age.sort(key=lambda x: x[1])
+                
+                # Remove oldest files until we're under the limit
+                for file, _ in files_by_age:
+                    try:
+                        file.unlink()
+                        logging.debug(f"Removed cache entry due to cache size limit: {file.name}")
+                        
+                        # Check if we're under the limit now
+                        if self._get_cache_size() <= (MAX_CACHE_SIZE_MB * 1024 * 1024):
+                            break
+                    except Exception as e:
+                        logging.warning(f"Error removing cache file {file}: {e}")
+            
+            # Recalculate cache statistics
+            self.total_cache_entries = len(list(self.cache_path.glob("*.json")))
+            logging.info(f"Cache pruned. Remaining entries: {self.total_cache_entries}")
+            
+        except Exception as e:
+            logging.error(f"Error pruning cache: {e}")
+
     def _init_cache(self):
         """Initialize the cache system"""
         try:
@@ -216,6 +380,15 @@ class PRDGenerator:
             cache_files = list(self.cache_path.glob("*.json"))
             self.total_cache_entries = len(cache_files)
             logging.info(f"Found {self.total_cache_entries} existing cache entries")
+            
+            # Check cache size and prune if necessary
+            cache_size = self._get_cache_size()
+            cache_size_mb = cache_size / (1024 * 1024)
+            logging.info(f"Current cache size: {cache_size_mb:.2f}MB")
+            
+            if cache_size > (MAX_CACHE_SIZE_MB * 1024 * 1024):
+                logging.info(f"Cache size ({cache_size_mb:.2f}MB) exceeds limit ({MAX_CACHE_SIZE_MB}MB). Pruning old entries.")
+                self._prune_cache()
         except Exception as e:
             logging.warning(f"Error initializing cache: {e}")
             self.total_cache_entries = 0
@@ -232,11 +405,13 @@ class PRDGenerator:
         
         if cache_file.exists():
             try:
-                with open(cache_file, 'r', encoding='utf-8') as f:
-                    cache_data = json.load(f)
-                input_tokens = cache_data.get('input_tokens', 0)
-                output_tokens = cache_data.get('output_tokens', 0)
-                return True, cache_data['response'], input_tokens, output_tokens
+                # Use file locking for concurrent access
+                with FileLock(cache_file):
+                    with open(cache_file, 'r', encoding='utf-8') as f:
+                        cache_data = json.load(f)
+                    input_tokens = cache_data.get('input_tokens', 0)
+                    output_tokens = cache_data.get('output_tokens', 0)
+                    return True, cache_data['response'], input_tokens, output_tokens
             except Exception as e:
                 logging.warning(f"Error reading cache file {cache_file}: {e}")
         
@@ -257,29 +432,59 @@ class PRDGenerator:
                 'output_tokens': output_tokens
             }
             
-            with open(cache_file, 'w', encoding='utf-8') as f:
-                json.dump(cache_data, f, ensure_ascii=False, indent=2)
+            # Use a temporary file and atomic rename for reliability
+            temp_file = cache_file.with_suffix('.tmp')
+            
+            # Use file locking for concurrent access
+            with FileLock(cache_file):
+                with open(temp_file, 'w', encoding='utf-8') as f:
+                    json.dump(cache_data, f, ensure_ascii=False, indent=2)
+                
+                # Atomic rename
+                temp_file.replace(cache_file)
             
             self.total_cache_entries += 1
+            
+            # Check cache size periodically and prune if necessary
+            if self.total_cache_entries % 10 == 0:  # Check every 10 new entries
+                cache_size = self._get_cache_size()
+                if cache_size > (MAX_CACHE_SIZE_MB * 1024 * 1024):
+                    logging.info(f"Cache size ({cache_size/(1024*1024):.2f}MB) exceeds limit. Pruning.")
+                    self._prune_cache()
+                    
         except Exception as e:
             logging.warning(f"Error saving to cache: {e}")
-
+    
+    #---------------------------------------------------------------------------------
+    # Token Management Methods
+    #---------------------------------------------------------------------------------
     def _estimate_tokens(self, prompt: str) -> int:
         """Estimate token count for a prompt with fallback to character-based estimation."""
         try:
             # First try the official method if available
+            estimated_tokens = 0
             if hasattr(self.client.messages, 'count_tokens'):
-                return self.client.messages.count_tokens(prompt)
+                estimated_tokens = self.client.messages.count_tokens(prompt)
+            else:
+                # Fallback to character-based estimation
+                char_count = len(prompt)
+                estimated_tokens = int(char_count * TOKENS_PER_CHAR)
+                logging.info(f"Using character-based token estimation: {estimated_tokens} tokens")
             
-            # Fallback to character-based estimation
-            char_count = len(prompt)
-            estimated_tokens = int(char_count * TOKENS_PER_CHAR)
-            logging.info(f"Using character-based token estimation: {estimated_tokens} tokens")
+            # Apply safety margin
+            estimated_tokens = int(estimated_tokens * TOKEN_SAFETY_MARGIN)
+            logging.info(f"Estimated tokens with safety margin: {estimated_tokens}")
+            
             return estimated_tokens
+            
         except Exception as e:
             logging.warning(f"Token estimation failed: {e}. Using default token limit.")
-            return DEFAULT_MAX_TOKENS
-
+            # Still apply safety margin to the default
+            return int(DEFAULT_MAX_TOKENS * TOKEN_SAFETY_MARGIN)
+    
+    #---------------------------------------------------------------------------------
+    # API Interaction Methods
+    #---------------------------------------------------------------------------------
     def _generate_section(self, prompt: str, identifier: str) -> str:
         """Generate PRD section with retry logic and caching."""
         retries = 0
@@ -334,34 +539,108 @@ class PRDGenerator:
                     return completion
                 else:
                     raise ValueError("Empty completion received.")
+            except anthropic.APIError as e:
+                retries += 1
+                delay = BASE_DELAY * retries
+                logging.error(f"API error generating section '{identifier}': {e}. Retrying in {delay} seconds...")
+                self.spinner.update_message(f"API error: {e}. Retrying in {delay}s... (Attempt {retries}/{MAX_RETRIES})")
+                time.sleep(delay)
+            except anthropic.APIStatusError as e:
+                retries += 1
+                delay = BASE_DELAY * retries
+                logging.error(f"API status error generating section '{identifier}': {e}. Retrying in {delay} seconds...")
+                self.spinner.update_message(f"API status error: {e}. Retrying in {delay}s... (Attempt {retries}/{MAX_RETRIES})")
+                time.sleep(delay)
+            except anthropic.RateLimitError as e:
+                retries += 1
+                delay = BASE_DELAY * retries * 2  # Longer delay for rate limits
+                logging.error(f"Rate limit error generating section '{identifier}': {e}. Retrying in {delay} seconds...")
+                self.spinner.update_message(f"Rate limit error. Retrying in {delay}s... (Attempt {retries}/{MAX_RETRIES})")
+                time.sleep(delay)
             except Exception as e:
                 retries += 1
                 delay = BASE_DELAY * retries
                 logging.error(f"Error generating section '{identifier}': {e}. Retrying in {delay} seconds...")
+                self.spinner.update_message(f"Error: {e}. Retrying in {delay}s... (Attempt {retries}/{MAX_RETRIES})")
                 time.sleep(delay)
+        
+        # If we get here, all retries failed
         logging.error(f"Failed to generate section '{identifier}' after {MAX_RETRIES} retries.")
-        return f"<!-- Failed to generate section: {identifier} -->"
-
+        return f"<!-- Failed to generate section: {identifier} after {MAX_RETRIES} attempts -->"
+    
+    #---------------------------------------------------------------------------------
+    # User Input Methods
+    #---------------------------------------------------------------------------------
     def get_multiline_input(self, prompt: str) -> str:
-        """Get multiline input from user."""
+        """Get multiline input from user with validation."""
         print(f"\n{prompt} (Press Enter twice to finish):")
         lines = []
-        while True:
-            line = input()
-            if line.strip() == "" and lines:
-                break
-            lines.append(line)
-        if not lines:
-            print("No input received; please provide some details.")
-            return self.get_multiline_input(prompt)
-        return "\n".join(lines)
+        max_attempts = 3
+        attempt = 0
+        
+        while attempt < max_attempts:
+            try:
+                while True:
+                    line = input()
+                    if line.strip() == "" and lines:
+                        break
+                    lines.append(line)
+                
+                # Validate input
+                if not lines:
+                    attempt += 1
+                    remaining = max_attempts - attempt
+                    print(f"No input received; please provide some details. {remaining} attempts remaining.")
+                    continue
+                
+                # Input is valid, return it
+                user_input = "\n".join(lines)
+                
+                # Additional validation for potentially harmful inputs
+                if len(user_input) > 10000:
+                    print("Input is too long. Please provide a shorter description.")
+                    lines = []
+                    attempt += 1
+                    continue
+                    
+                return user_input
+                
+            except KeyboardInterrupt:
+                print("\nInput interrupted. Starting over.")
+                lines = []
+                attempt += 1
+                continue
+            except Exception as e:
+                print(f"\nError during input: {e}. Please try again.")
+                lines = []
+                attempt += 1
+                continue
+        
+        # If we get here, all attempts failed
+        print("Maximum attempts reached. Using default placeholder.")
+        return "Generic project with minimal details provided."
 
     def get_project_info(self) -> dict:
-        """Collect project information from user."""
-        # No need to call print_header() here, it's called in main()
+        """Collect project information from user with validation."""
         info = {}
-
-        info['name'] = input("\nEnter project name: ").strip()
+        
+        # Get project name with validation
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            name = input("\nEnter project name: ").strip()
+            if name and len(name) <= 100:
+                info['name'] = name
+                break
+            else:
+                remaining = max_attempts - attempt - 1
+                if not name:
+                    print(f"Project name cannot be empty. {remaining} attempts remaining.")
+                else:
+                    print(f"Project name is too long (max 100 characters). {remaining} attempts remaining.")
+                
+                if remaining == 0:
+                    print("Using default project name: 'My Project'")
+                    info['name'] = "My Project"
 
         # Removed the "Describe your project goal" heading and just kept the helpful guidance
         print("\nBefore describing your goal, please consider:\n")
@@ -384,6 +663,19 @@ class PRDGenerator:
 
     def _generate_tech_recommendations(self, project_info: dict) -> dict:
         """Generate technology stack recommendations based on project requirements."""
+        # Validate input
+        if not project_info or not isinstance(project_info, dict):
+            logging.error("Invalid project info provided to _generate_tech_recommendations")
+            return {"tech_stack": {}, "vision_info": {}}
+            
+        if 'name' not in project_info or 'goal' not in project_info:
+            logging.warning("Project info missing required fields (name or goal)")
+            # Set defaults for missing fields
+            if 'name' not in project_info:
+                project_info['name'] = "Unnamed Project"
+            if 'goal' not in project_info:
+                project_info['goal'] = "Create a software application with minimal details provided."
+        
         self.spinner.start("Generating technology recommendations...")
         
         tech_prompt = (
@@ -1021,6 +1313,15 @@ class PRDGenerator:
 
     def _extract_phases_from_overview(self, overview_section: str) -> List[Dict[str, str]]:
         """Extract phase names and descriptions from the overview section."""
+        if not overview_section or not isinstance(overview_section, str):
+            logging.warning("Invalid overview section provided to _extract_phases_from_overview")
+            # Return a default phase structure if extraction fails
+            return [
+                {'name': 'Initial Setup and Core Structure', 'description': 'Set up project files and implement basic architecture.'},
+                {'name': 'Core Functionality', 'description': 'Implement the main features and functionality.'},
+                {'name': 'Polish and Finalization', 'description': 'Refine UI, add final features, and optimize for performance.'}
+            ]
+            
         phase_descriptions: List[Dict[str, str]] = []
         phase_pattern = re.compile(r"#### Phase \d+:\s*(.*)") # Matches "#### Phase N: Phase Name"
 
@@ -1061,10 +1362,35 @@ class PRDGenerator:
         if not sections:
             logging.error("No PRD content to save.")
             return
+            
+        # Validate project name
+        if not project_name or not isinstance(project_name, str):
+            logging.warning("Invalid project name provided. Using default.")
+            project_name = "unnamed_project"
+            
+        # Clean project name for filesystem safety
+        project_name = re.sub(r'[^\w\s-]', '', project_name).strip()
+        if not project_name:
+            project_name = "unnamed_project"
         
         # Use the stored project_info if none is provided
         if project_info is None:
             project_info = self.project_info
+            
+        if not project_info or not isinstance(project_info, dict):
+            logging.warning("Invalid project info. Using defaults.")
+            project_info = {
+                'name': project_name,
+                'tech_recommendations': {},
+                'vision_info': {
+                    'vision_statement': '',
+                    'problem_solved': '',
+                    'intended_users': '',
+                    'core_objectives': [],
+                    'target_audience': '',
+                    'success_criteria': []
+                }
+            }
 
         # Process sections to ensure proper formatting of code blocks and diagrams
         processed_sections = []
@@ -1627,38 +1953,68 @@ class PRDGenerator:
             self.spinner.stop()
             logging.error(f"Error saving PRD files: {e}")
 
-def clear_screen():
-    """Clear the terminal screen."""
-    print("\033[H\033[J", end="")
-
-def print_header():
-    """Print header for the tool."""
-    clear_screen()
-    print("=" * 50)
-    print("Dynamic Phased PRD Generator".center(50))
-    print("=" * 50)
-    print("\nGenerates detailed, implementable PRD with dynamic phases, designed for AI assistance.") # Updated header description
-
 def main():
     """Main function to run the PRD generator."""
     try:
         # Set up command-line argument parsing
         parser = argparse.ArgumentParser(description='Generate a Product Requirements Document (PRD) with dynamic phases')
         parser.add_argument('--clear-cache', action='store_true', help='Clear the cache before running')
+        parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
         args = parser.parse_args()
+        
+        # Configure logging level based on verbose flag
+        if args.verbose:
+            logger.setLevel(logging.INFO)
+            logging.info("Verbose logging enabled")
         
         # Print header only once at the start
         print_header()
         
-        model, api_key, prd_path, cache_path = load_environment()
-        generator = PRDGenerator(model, api_key, prd_path, cache_path, args.clear_cache)
-        project_info = generator.get_project_info()
-        # Store project_info in the generator for later use
-        generator.project_info = project_info
-        prd_sections = generator.generate_prd_sections(project_info)
+        try:
+            model, api_key, prd_path, cache_path = load_environment()
+        except Exception as e:
+            logging.critical(f"Failed to load environment: {e}")
+            print("\nError: Failed to load environment settings. Please check your .env file.")
+            sys.exit(1)
+            
+        try:
+            generator = PRDGenerator(model, api_key, prd_path, cache_path, args.clear_cache)
+        except Exception as e:
+            logging.critical(f"Failed to initialize generator: {e}")
+            print("\nError: Failed to initialize the PRD generator. Check your API credentials.")
+            sys.exit(1)
+            
+        try:
+            project_info = generator.get_project_info()
+            # Store project_info in the generator for later use
+            generator.project_info = project_info
+        except KeyboardInterrupt:
+            print("\n\nPRD generation cancelled during project info collection.")
+            sys.exit(0)
+        except Exception as e:
+            logging.error(f"Error collecting project information: {e}")
+            print("\nError: Failed to collect project information. Using minimal defaults.")
+            project_info = {'name': 'Unnamed Project', 'goal': 'Create a software application.', 'tech_specified': False}
+            generator.project_info = project_info
+            
+        try:
+            prd_sections = generator.generate_prd_sections(project_info)
+        except KeyboardInterrupt:
+            print("\n\nPRD generation cancelled during section generation.")
+            sys.exit(0)
+        except Exception as e:
+            logging.error(f"Error generating PRD sections: {e}")
+            print("\nError: Failed to generate PRD sections.")
+            sys.exit(1)
 
         if prd_sections:
-            generator.save_prd(prd_sections, project_info['name'], project_info)
+            try:
+                generator.save_prd(prd_sections, project_info['name'], project_info)
+            except Exception as e:
+                logging.error(f"Error saving PRD files: {e}")
+                print(f"\nError: Failed to save PRD files: {e}")
+                sys.exit(1)
+                
             print("\nPRD generation complete! Implementation guide in generated directory.")
             
             # Display cache statistics
