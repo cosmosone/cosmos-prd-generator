@@ -47,7 +47,12 @@ import logging
 import argparse
 import shutil
 import tempfile
-import fcntl
+# Platform-specific imports for file locking
+import platform
+if platform.system() == 'Windows':
+    import msvcrt
+else:
+    import fcntl
 from typing import List, Tuple, Dict, Optional
 from pathlib import Path
 import re
@@ -64,6 +69,7 @@ from dotenv import load_dotenv
 MAX_RETRIES = 3
 BASE_DELAY = 5  # seconds
 DEFAULT_MAX_TOKENS = 4096  # Updated default for Claude-3
+MAX_MODEL_TOKENS = 8192  # Maximum tokens allowed for Claude 3.5 Haiku
 TOKENS_PER_CHAR = 0.3  # Rough estimation ratio for fallback calculation
 TOKEN_SAFETY_MARGIN = 1.2  # 20% safety margin for token estimation
 MAX_CACHE_SIZE_MB = 100  # 100MB max cache size
@@ -110,6 +116,7 @@ class FileLock:
         self.file_path = file_path
         self.lock_file = Path(f"{file_path}.lock")
         self.lock_fd = None
+        self.is_windows = platform.system() == 'Windows'
 
     def __enter__(self):
         try:
@@ -119,7 +126,15 @@ class FileLock:
             
             # Open the lock file and acquire an exclusive lock
             self.lock_fd = open(self.lock_file, 'w')
-            fcntl.flock(self.lock_fd, fcntl.LOCK_EX)
+            
+            if self.is_windows:
+                # Windows file locking
+                file_handle = msvcrt.get_osfhandle(self.lock_fd.fileno())
+                # Lock from current position to end of file (0 bytes beyond current)
+                msvcrt.locking(self.lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                # Unix file locking
+                fcntl.flock(self.lock_fd, fcntl.LOCK_EX)
             return self
         except Exception as e:
             logging.warning(f"Failed to acquire lock for {self.file_path}: {e}")
@@ -131,17 +146,26 @@ class FileLock:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.lock_fd:
-            # Release the lock and close the file
-            fcntl.flock(self.lock_fd, fcntl.LOCK_UN)
-            self.lock_fd.close()
-            self.lock_fd = None
-            
-            # Try to remove the lock file, but don't fail if it doesn't exist
             try:
-                if self.lock_file.exists():
-                    self.lock_file.unlink()
+                # Release the lock
+                if self.is_windows:
+                    # Windows unlock
+                    msvcrt.locking(self.lock_fd.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    # Unix unlock
+                    fcntl.flock(self.lock_fd, fcntl.LOCK_UN)
             except Exception as e:
-                logging.warning(f"Failed to remove lock file {self.lock_file}: {e}")
+                logging.warning(f"Error releasing lock: {e}")
+            finally:
+                # Close the file
+                self.lock_fd.close()
+                self.lock_fd = None
+                # Try to remove the lock file
+                try:
+                    if self.lock_file.exists():
+                        self.lock_file.unlink()
+                except Exception as e:
+                    logging.debug(f"Could not remove lock file: {e}")
 
 class ProgressSpinner:
     """Progress spinner for console."""
@@ -150,11 +174,14 @@ class ProgressSpinner:
         self.counter = 0
         self.spinner_chars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
         self.current_message = ""
+        self.term_width = shutil.get_terminal_size().columns
+        self.lock = threading.Lock()
 
     def spin(self):
         while self.spinning:
-            sys.stdout.write(f"\r{self.spinner_chars[self.counter]} {self.current_message}")
-            sys.stdout.flush()
+            with self.lock:
+                sys.stdout.write(f"\r{self.spinner_chars[self.counter]} {self.current_message}")
+                sys.stdout.flush()
             self.counter = (self.counter + 1) % len(self.spinner_chars)
             time.sleep(0.1)
 
@@ -164,16 +191,25 @@ class ProgressSpinner:
         threading.Thread(target=self.spin, daemon=True).start()
 
     def update_message(self, message):
-        # Clear the current line completely before writing the new message
-        sys.stdout.write("\r" + " " * 100 + "\r")  # Use a fixed width buffer that's reasonably large
-        self.current_message = message
-        sys.stdout.write(f"{self.spinner_chars[self.counter]} {self.current_message}")
-        sys.stdout.flush()
+        # Get current terminal width for better clearing
+        self.term_width = shutil.get_terminal_size().columns
+        
+        with self.lock:
+            # Clear the current line completely before writing the new message
+            sys.stdout.write("\r" + " " * (self.term_width - 1) + "\r")
+            self.current_message = message
+            sys.stdout.write(f"{self.spinner_chars[self.counter]} {self.current_message}")
+            sys.stdout.flush()
 
     def stop(self):
         self.spinning = False
+        time.sleep(0.2)  # Give the spinner thread time to notice and exit
+        
+        # Get current terminal width for better clearing
+        self.term_width = shutil.get_terminal_size().columns
+        
         # Clear the current line completely
-        sys.stdout.write("\r" + " " * 100 + "\r")
+        sys.stdout.write("\r" + " " * (self.term_width - 1) + "\r")
         sys.stdout.flush()
 
 #######################################################################################
@@ -498,14 +534,16 @@ class PRDGenerator:
             self.output_tokens_saved += output_tokens
             logging.info(f"Cache hit for section '{identifier}'. Tokens saved: {input_tokens} input, {output_tokens} output")
             # Clear any partial output and show a complete message for cache hits
-            print(f"\rRetrieving '{identifier}' from cache (Tokens saved: {input_tokens + output_tokens})...")
-            self.spinner.stop()  # Stop spinner to avoid interference with output
+            self.spinner.stop()
+            sys.stdout.write(f"\rRetrieving '{identifier}' from cache (Tokens saved: {input_tokens + output_tokens})..." + " " * 20 + "\n")
+            sys.stdout.flush()
             time.sleep(0.5)  # Small delay to ensure message is visible
             return cached_response
         
         # Estimate required tokens
         estimated_tokens = self._estimate_tokens(prompt)
-        max_tokens = max(estimated_tokens * 2, DEFAULT_MAX_TOKENS)  # Double the input tokens as safety margin
+        # Double the input tokens as safety margin but don't exceed model's max limit
+        max_tokens = min(max(estimated_tokens * 2, DEFAULT_MAX_TOKENS), MAX_MODEL_TOKENS)
         
         logging.info(f"Section {identifier}: Estimated input tokens: {estimated_tokens}, Max output tokens: {max_tokens}")
         
@@ -1163,98 +1201,33 @@ class PRDGenerator:
         )
 
 
-        # Generate the project overview section
+        # Generate overview section
         overview_prompt = (
-            f"Generate a high-level project overview for {project_info['name']}.\n\n"
-            f"Project Details:\n"
-            f"Name: {project_info['name']}\n"
-            f"Goal: {project_info['goal']}\n"
-            f"**Design**: Sleek, modern, minimalistic design.\n"
-            f"\n\n"
-        )
-
-        # Conditionally add technology suggestion if no technology is specified
-        if not project_info.get('tech_specified', False):
-            overview_prompt += (
-                f"Since no specific technology stack was explicitly specified, this PRD will focus on "
-                f"architecture, design principles, and phased implementation, making it technology-agnostic. "
-                f"The generated PRD will emphasize clean architecture, separation of concerns, and testability. "
-                f"Implementation phases will be described conceptually, without specific technology commands.\n\n"
-                f"If you intend to use a specific technology stack, ensure it aligns with the architectural guidelines "
-                f"defined in this PRD. For web-based projects like Chrome extensions, consider HTML, CSS, JavaScript, "
-                f"and frameworks like React, Vue, or Svelte. For cross-platform apps, options include Flutter, React Native, or native technologies. "
-                f"Choose a stack that best fits your needs while adhering to the outlined architectural principles.\n\n"
-            )
-
-        overview_prompt += (
-            f"{base_guidelines}\n"
-            f"{ai_guidelines_ref}\n\n"
-            "**First, provide a concise 1-2 sentence description of the '{project_info['name']}' app/extension.**\n\n"
-            "**Then, suggest a phased implementation approach, with the following structure:**\n"
-            "#### Phase 1: Minimal Working Prototype\n"
-            "Start with a simple, working prototype that builds and runs. Focus on setting up the project with minimal functionality and verifying the setup by starting the app.\n\n"
-            "Then suggest 3-5 additional phases, each building on a working foundation from the previous phase. Use '#### Phase N: Phase Name' format for phase headings.\n\n"
-            "After defining the phases, then Include:\n"
-            "1. Project Overview\n"
-            "   - Core functionality\n"
-            "   - Target architecture (Clean Architecture)\n"
-            "   - Key components\n"
-            "   - System boundaries\n\n"
-            "2. Technology Recommendations (General, if no specific tech is provided)\n"
-            "   - Suggest general technology categories (Frontend, Backend, Database, etc.)\n" # More general tech recommendations
-            "   - Framework versions (if applicable)\n"
-            "   - Key libraries (if applicable)\n"
-            "   - Development tools\n"
-            "   - Build requirements\n\n"
-            "3. High-Level Design\n"
-            "   - **Overall aesthetic**: Sleek, modern, minimalistic design\n"
-            "   - Component diagram (use Mermaid format)\n"
-            "   - Data flow\n"
-            "   - Key interfaces\n"
-            "   - Security considerations\n\n"
-            "For the component diagram, use Mermaid format like this:\n"
-            "```mermaid\n"
-            "flowchart TB\n"
-            "    subgraph Presentation Layer\n"
-            "        UI[UI Components] --- VM[View Models]\n"
-            "    end\n"
-            "    subgraph Application Layer\n"
-            "        VM --- UC[Use Cases]\n"
-            "    end\n"
-            "    subgraph Domain Layer\n"
-            "        UC --- E[Entities]\n"
-            "        UC --- R[Repository Interfaces]\n"
-            "    end\n"
-            "    subgraph Infrastructure Layer\n"
-            "        RI[Repository Implementations] --- R\n"
-            "        RI --> DS[Data Sources]\n"
-            "    end\n"
-            "    Presentation Layer --> Application Layer\n"
-            "    Application Layer --> Domain Layer\n"
-            "    Domain Layer --> Infrastructure Layer\n"
-            "```\n\n"
-            "IMPORTANT FORMATTING RULES:\n"
-            "- No code blocks (```) for bullet points\n"
-            "- Code blocks ONLY for code, diagrams, or multi-line technical content\n"
-            "- Consistent bullet point formatting\n"
-            "- Bold or italic for components/models, not code blocks\n\n"
-            "IMPORTANT NOTE FOR IDE AI IMPLEMENTATION:\n"
-            "- Overview document for UNDERSTANDING ONLY\n"
-            "- NO implementation yet\n"
-            "- NO project structure yet\n"
-            "- NO repository initialization yet\n"
-            "- Wait for Phase 1 document for implementation\n"
-            "- Each phase has specific instructions\n"
-            "- Confirm each phase completion before next phase\n"
-            "Format in Markdown. Focus on architecture and design, not implementation details."
+            f"Generate a comprehensive overview for a Software Product Requirements Document (PRD) for '{project_info['name']}'.\n\n"
+            f"Project Goal:\n{project_info['goal']}\n\n"
+            f"Include:\n"
+            f"1. Executive Summary: Brief description of the product/project and its purpose.\n"
+            f"2. Vision: The problem being solved and who it's for.\n"
+            f"3. Objectives: Specific business and technical goals.\n"
+            f"4. Timeline: Break down the implementation into 5 distinct, logical phases of progressive complexity and feature development.\n"
+            f"   - Each phase should have a clear name and short description.\n"
+            f"   - Phase 1 should be a minimal working prototype or MVP.\n"
+            f"   - Subsequent phases should build on previous phases, adding more features/refinements.\n"
+            f"   - Later phases should include optimization, security hardening, testing, etc.\n\n"
+            f"IMPORTANT FORMAT REQUIREMENT: For each phase in the timeline, use the EXACT format: '#### Phase N: Phase Name' (with 4 hashtags), followed by the description on the next lines. Example:\n\n"
+            f"#### Phase 1: Initial Setup\nDescription of initial setup phase...\n\n"
+            f"#### Phase 2: Core Functionality\nDescription of core functionality phase...\n\n"
+            f"Format everything in Markdown. Focus on architecture and design, not implementation details."
         )
         self.spinner.start("Generating Project Overview...")
         overview_section = self._generate_section(overview_prompt, "overview")
-        sections.append(overview_section)
         
-        # Stop spinner after overview is complete
+        # Stop spinner completely and print a clean status message
         self.spinner.stop()
-        print("\rOverview generation complete.")
+        sys.stdout.write("\rOverview generation complete." + " " * 40 + "\n")
+        sys.stdout.flush()
+        
+        sections.append(overview_section)
         
         # Extract phase descriptions from the generated overview
         phase_descriptions = self._extract_phases_from_overview(overview_section)
@@ -1264,9 +1237,8 @@ class PRDGenerator:
             phase_name = phase_info['name']
             phase_description = phase_info['description']
             
-            # Restart spinner for each phase with clear message
+            # Start spinner directly without the redundant print message
             self.spinner.stop()
-            print(f"\rPhase {i}: {phase_name}...")
             self.spinner.start(f"Generating Phase {i}: {phase_name}...")
             
             phase_prompt = (
@@ -1370,8 +1342,15 @@ class PRDGenerator:
                 f"- Implement proper logging and observability.\n"
                 f"Format in Markdown. Concrete, testable implementation steps. No implementation without explicit confirmation."
             )
-            phase_section = self._generate_section(phase_prompt, f"phase_{i}")
-            sections.append(phase_section)
+
+            # After generating each phase content
+            phase_content = self._generate_section(phase_prompt, f"phase_{i}")
+            sections.append(phase_content)
+            
+            # Status after phase completion
+            self.spinner.stop()
+            sys.stdout.write(f"\rCompleted Phase {i}: {phase_name}" + " " * 30 + "\n")
+            sys.stdout.flush()
 
         self.sections = sections
         return sections
@@ -1382,46 +1361,141 @@ class PRDGenerator:
         if not overview_section or not isinstance(overview_section, str):
             logging.warning("Invalid overview section provided to _extract_phases_from_overview")
             # Return a default phase structure if extraction fails
-            return [
-                {'name': 'Initial Setup and Core Structure', 'description': 'Set up project files and implement basic architecture.'},
-                {'name': 'Core Functionality', 'description': 'Implement the main features and functionality.'},
-                {'name': 'Polish and Finalization', 'description': 'Refine UI, add final features, and optimize for performance.'}
-            ]
+            return self._get_default_phases()
             
         phase_descriptions: List[Dict[str, str]] = []
-        phase_pattern = re.compile(r"#### Phase \d+:\s*(.*)") # Matches "#### Phase N: Phase Name"
+        
+        # Try multiple phase header patterns
+        # Pattern 1: #### Phase N: Name
+        # Pattern 2: ### Phase N: Name
+        # Pattern 3: ## Phase N: Name
+        # Pattern 4: Phase N: Name
+        # Pattern 5: **Phase N:** Name
+        patterns = [
+            re.compile(r"####\s+Phase\s+\d+:\s*(.*)"),
+            re.compile(r"###\s+Phase\s+\d+:\s*(.*)"),
+            re.compile(r"##\s+Phase\s+\d+:\s*(.*)"),
+            re.compile(r"Phase\s+\d+:\s*(.*)"),
+            re.compile(r"\*\*Phase\s+\d+:\*\*\s*(.*)")
+        ]
 
         lines = overview_section.splitlines()
         i = 0
         current_phase_info = None
+        
+        # First try finding phases with our supported patterns
         while i < len(lines):
             line = lines[i].strip()
-            phase_match = phase_pattern.match(line)
-            if phase_match:
-                if current_phase_info: # Save previous phase if exists
-                    phase_descriptions.append(current_phase_info)
+            matched = False
+            
+            for pattern in patterns:
+                phase_match = pattern.match(line)
+                if phase_match:
+                    matched = True
+                    if current_phase_info: # Save previous phase if exists
+                        phase_descriptions.append(current_phase_info)
 
-                phase_name = phase_match.group(1).strip()
-                current_phase_info = {'name': phase_name, 'description': ""} # Start new phase info
-                i += 1
-                description_lines = []
-                while i < len(lines) and not lines[i].strip().startswith("#### Phase "): # Read description until next phase heading
-                    description_lines.append(lines[i].strip())
+                    phase_name = phase_match.group(1).strip()
+                    current_phase_info = {'name': phase_name, 'description': ""} # Start new phase info
                     i += 1
-                current_phase_info['description'] = " ".join(description_lines).strip() # Join description lines and set
-                continue # Skip incrementing i again as inner loop already did
-            i += 1
+                    description_lines = []
+                    
+                    # Read until next phase heading or empty line followed by a heading
+                    while i < len(lines):
+                        next_line = lines[i].strip()
+                        # Check if we've hit another phase heading
+                        is_next_phase = False
+                        for p in patterns:
+                            if p.match(next_line):
+                                is_next_phase = True
+                                break
+                        
+                        if is_next_phase:
+                            break
+                        
+                        description_lines.append(next_line)
+                        i += 1
+                    
+                    current_phase_info['description'] = " ".join(description_lines).strip() # Join description lines and set
+                    break  # Found a match with this pattern, break the pattern loop
+            
+            if not matched:
+                i += 1  # Only increment if no match was found
 
-        if current_phase_info: # Add the last phase if it was captured
+        # Add the last phase if it was captured
+        if current_phase_info:
             phase_descriptions.append(current_phase_info)
 
-
+        # If we still have no phases, try to find sections that look like phases
         if not phase_descriptions:
-            logging.warning("Could not automatically extract phase descriptions from overview. Check overview format.")
-            return []
+            logging.warning("Could not find phases with standard patterns. Trying alternative extraction...")
+            phase_descriptions = self._extract_phases_alternative(overview_section)
+
+        # If still no phases, use defaults
+        if not phase_descriptions:
+            logging.warning("Could not automatically extract phase descriptions from overview. Using default phases.")
+            return self._get_default_phases()
 
         return phase_descriptions
-
+        
+    def _extract_phases_alternative(self, overview_section: str) -> List[Dict[str, str]]:
+        """Alternative phase extraction when standard patterns fail."""
+        phases = []
+        
+        # Look for any heading that contains the word 'phase'
+        phase_pattern = re.compile(r"#+\s+.*phase.*", re.IGNORECASE)
+        # Or numbered lists that might represent phases
+        numbered_list_pattern = re.compile(r"^\d+\.\s+(.*)", re.IGNORECASE)
+        
+        lines = overview_section.splitlines()
+        i = 0
+        
+        while i < len(lines):
+            line = lines[i].strip()
+            
+            # Check for headings with "phase"
+            if phase_pattern.match(line):
+                phase_name = line.strip("#").strip()
+                i += 1
+                description = []
+                while i < len(lines) and not lines[i].strip().startswith("#"):
+                    description.append(lines[i].strip())
+                    i += 1
+                phases.append({
+                    "name": phase_name,
+                    "description": " ".join(description).strip()
+                })
+                continue
+            
+            # Check for numbered lists
+            numbered_match = numbered_list_pattern.match(line)
+            if numbered_match and i < len(lines) - 1:
+                phase_name = numbered_match.group(1).strip()
+                i += 1
+                description = []
+                # Get next paragraph as description
+                while i < len(lines) and lines[i].strip() and not numbered_list_pattern.match(lines[i].strip()):
+                    description.append(lines[i].strip())
+                    i += 1
+                phases.append({
+                    "name": f"Phase {len(phases) + 1}: {phase_name}",
+                    "description": " ".join(description).strip()
+                })
+                continue
+                
+            i += 1
+            
+        return phases
+            
+    def _get_default_phases(self) -> List[Dict[str, str]]:
+        """Return default phases when extraction fails."""
+        return [
+            {'name': 'Initial Setup and Core Structure', 'description': 'Set up project files and implement basic architecture.'},
+            {'name': 'Core Functionality', 'description': 'Implement the main features and functionality.'},
+            {'name': 'UI Enhancement and Settings Page', 'description': 'Add a settings page and improve the user interface.'},
+            {'name': 'Testing and Optimization', 'description': 'Test functionality across different scenarios and optimize performance.'},
+            {'name': 'Deployment and Documentation', 'description': 'Package the extension for distribution and document the project.'}
+        ]
 
     def save_prd(self, sections: List[str], project_name: str, project_info: dict = None):
         """Save PRD sections into Markdown files."""
